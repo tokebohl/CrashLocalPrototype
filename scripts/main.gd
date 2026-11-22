@@ -20,7 +20,12 @@ var world: Node2D
 var hud_layer: CanvasLayer
 var hud: Label
 var sub_hud: Label
-var touch_state := {"left": false, "right": false}
+var touch_state := {"left": false, "right": false, "analog_x": 0.0}
+var stick_center := Vector2(138, 622)
+var stick_radius := 68.0
+var stick_touch_id := -1
+var stick_base: Control
+var stick_knob: Control
 var touch_rects: Dictionary = {}
 var active_touches: Dictionary = {}
 var button_down_state := {"left": false, "right": false}
@@ -894,10 +899,48 @@ func _build_hud_and_touch() -> void:
 	sub_hud.add_theme_color_override("font_color", Color.WHITE)
 	hud_layer.add_child(sub_hud)
 
-	_touch_button(hud_layer, "◀", Vector2(28, 595), Vector2(104, 96), "left", Color("#2b7a58"))
-	_touch_button(hud_layer, "▶", Vector2(148, 595), Vector2(104, 96), "right", Color("#2b7a58"))
+	_build_virtual_thumbstick(hud_layer)
 	_touch_button(hud_layer, "JUMP", Vector2(995, 590), Vector2(120, 100), "jump", Color("#2678d9"))
 	_touch_button(hud_layer, "SPIN", Vector2(1130, 590), Vector2(120, 100), "spin", Color("#e85d24"))
+
+func _build_virtual_thumbstick(layer: CanvasLayer) -> void:
+	stick_base = Control.new()
+	stick_base.position = stick_center - Vector2(stick_radius, stick_radius)
+	stick_base.size = Vector2(stick_radius * 2.0, stick_radius * 2.0)
+	stick_base.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(stick_base)
+
+	var outer_ring := Polygon2D.new()
+	var pts_outer := PackedVector2Array()
+	for i in range(32):
+		var a: float = float(i) / 32.0 * TAU
+		pts_outer.append(Vector2(stick_radius + cos(a) * stick_radius, stick_radius + sin(a) * stick_radius))
+	outer_ring.polygon = pts_outer
+	outer_ring.color = Color(0.12, 0.32, 0.25, 0.52)
+	stick_base.add_child(outer_ring)
+
+	var inner_ring := Polygon2D.new()
+	var pts_inner := PackedVector2Array()
+	for i in range(32):
+		var a: float = float(i) / 32.0 * TAU
+		pts_inner.append(Vector2(stick_radius + cos(a) * (stick_radius - 5.0), stick_radius + sin(a) * (stick_radius - 5.0)))
+	inner_ring.polygon = pts_inner
+	inner_ring.color = Color(0.55, 0.92, 0.76, 0.22)
+	stick_base.add_child(inner_ring)
+
+	stick_knob = Control.new()
+	stick_knob.position = Vector2(stick_radius, stick_radius)
+	stick_knob.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stick_base.add_child(stick_knob)
+
+	var knob_poly := Polygon2D.new()
+	var pts_knob := PackedVector2Array()
+	for i in range(24):
+		var a: float = float(i) / 24.0 * TAU
+		pts_knob.append(Vector2(cos(a) * 28.0, sin(a) * 28.0))
+	knob_poly.polygon = pts_knob
+	knob_poly.color = Color(0.95, 0.98, 0.90, 0.88)
+	stick_knob.add_child(knob_poly)
 
 func _touch_button(layer: CanvasLayer, text: String, pos: Vector2, bsize: Vector2, action: String, col: Color) -> void:
 	var b := Button.new()
@@ -931,26 +974,40 @@ func _input(event: InputEvent) -> void:
 			active_touches[st.index] = st.position
 			if touch_rects.has("jump") and touch_rects["jump"].has_point(st.position):
 				jump_queued = true
-			if touch_rects.has("spin") and touch_rects["spin"].has_point(st.position):
+			elif touch_rects.has("spin") and touch_rects["spin"].has_point(st.position):
 				spin_queued = true
+			elif stick_touch_id == -1 and st.position.x < 540.0 and st.position.y > 320.0:
+				stick_touch_id = st.index
+				_update_thumbstick(st.position)
 		else:
 			active_touches.erase(st.index)
-		_refresh_multitouch_dpad()
+			if st.index == stick_touch_id:
+				stick_touch_id = -1
+				_reset_thumbstick()
 	elif event is InputEventScreenDrag:
 		var sd := event as InputEventScreenDrag
 		active_touches[sd.index] = sd.position
-		_refresh_multitouch_dpad()
+		if sd.index == stick_touch_id:
+			_update_thumbstick(sd.position)
 
-func _refresh_multitouch_dpad() -> void:
-	var l: bool = bool(button_down_state.get("left", false))
-	var r: bool = bool(button_down_state.get("right", false))
-	for pos in active_touches.values():
-		if touch_rects.has("left") and touch_rects["left"].has_point(pos):
-			l = true
-		if touch_rects.has("right") and touch_rects["right"].has_point(pos):
-			r = true
-	touch_state["left"] = l
-	touch_state["right"] = r
+func _update_thumbstick(touch_pos: Vector2) -> void:
+	var delta_vec: Vector2 = touch_pos - stick_center
+	var clamped: Vector2 = delta_vec.limit_length(stick_radius)
+	if is_instance_valid(stick_knob):
+		stick_knob.position = Vector2(stick_radius, stick_radius) + clamped
+	var norm_x: float = clamped.x / stick_radius
+	if absf(norm_x) < 0.14:
+		norm_x = 0.0
+	touch_state["analog_x"] = norm_x
+	touch_state["left"] = norm_x < -0.14
+	touch_state["right"] = norm_x > 0.14
+
+func _reset_thumbstick() -> void:
+	if is_instance_valid(stick_knob):
+		stick_knob.position = Vector2(stick_radius, stick_radius)
+	touch_state["analog_x"] = 0.0
+	touch_state["left"] = false
+	touch_state["right"] = false
 
 @rpc("authority", "call_local", "reliable")
 func _spawn_player(id: int, pos: Vector2, is_bot: bool = false) -> void:

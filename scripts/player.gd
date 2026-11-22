@@ -241,10 +241,14 @@ func _physics_process(delta: float) -> void:
 			dir -= 1.0
 		if Input.is_key_pressed(KEY_RIGHT) or Input.is_key_pressed(KEY_D):
 			dir += 1.0
-		if main.touch_state.get("left", false):
-			dir -= 1.0
-		if main.touch_state.get("right", false):
-			dir += 1.0
+		var analog_x: float = float(main.touch_state.get("analog_x", 0.0))
+		if absf(analog_x) > 0.01:
+			dir += analog_x
+		else:
+			if main.touch_state.get("left", false):
+				dir -= 1.0
+			if main.touch_state.get("right", false):
+				dir += 1.0
 		dir = clampf(dir, -1.0, 1.0)
 		want_jump = Input.is_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_UP) or main.consume_action("jump")
 		want_spin = Input.is_key_pressed(KEY_SHIFT) or main.consume_action("spin")
