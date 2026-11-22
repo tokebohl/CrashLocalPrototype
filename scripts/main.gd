@@ -3,10 +3,12 @@ extends Node2D
 const PORT := 27015
 const MAX_CLIENTS := 3
 const PLAYER_SCRIPT := preload("res://scripts/player.gd")
+const DRIFT_CAR_SCRIPT := preload("res://scripts/drift_car.gd")
 const RACE_WORLD_WIDTH := 6400.0
 const ARENA_WORLD_WIDTH := 2200.0
 const FLOOR_Y := 610.0
 const NET_TICK_INTERVAL := 0.033 # 30 Hz ENet multiplayer synkronisering
+const DRIFT_TARGET_LAPS := 3
 
 var peer: ENetMultiplayerPeer
 var players: Dictionary = {}
@@ -20,22 +22,24 @@ var world: Node2D
 var hud_layer: CanvasLayer
 var hud: Label
 var sub_hud: Label
-var touch_state := {"left": false, "right": false, "analog_x": 0.0}
-var stick_center := Vector2(138, 622)
-var stick_radius := 68.0
-var stick_touch_id := -1
-var stick_base: Control
-var stick_knob: Control
+var touch_state := {"left": false, "right": false, "analog_x": 0.0, "analog_y": 0.0, "drift_held": false}
 var touch_rects: Dictionary = {}
 var active_touches: Dictionary = {}
-var button_down_state := {"left": false, "right": false}
 var jump_queued := false
 var spin_queued := false
+var boost_queued := false
 var local_player
 var camera: Camera2D
 var finishers: Array[int] = []
 var arena_timer := 90.0
 var result_panel: Control
+
+# Virtuel analog thumbstick til både platform- og drift-styring
+var stick_center := Vector2(138.0, 618.0)
+var stick_radius := 68.0
+var stick_touch_id := -1
+var stick_base: Control
+var stick_knob: Control
 
 # Grafik-, animations-, objekt- og lyd-containere
 var tex_cache: Dictionary = {}
@@ -54,15 +58,13 @@ var env_time := 0.0
 var net_tick_accum := 0.0
 var camera_shake := 0.0
 
-func _ready() -> void:
-	var _drift_btn := Button.new()
-	_drift_btn.text = "🏎️ SUPRA DRIFT BATTLE (3 LIV + SKYD)"
-	_drift_btn.custom_minimum_size = Vector2(360, 52)
-	_drift_btn.position = Vector2(460, 635)
-	_drift_btn.add_theme_color_override("font_color", Color(0.1, 0.95, 1.0))
-	_drift_btn.pressed.connect(_launch_supra_drift_mode)
-	add_child(_drift_btn)
+# Supra Drift-bane data
+var drift_waypoints: Array[Vector2] = []
+var skid_marks: Array[Polygon2D] = []
+var drift_start_line := Rect2(1480.0, 210.0, 140.0, 290.0)
+var drift_halfway_zone := Rect2(1480.0, 1420.0, 140.0, 290.0)
 
+func _ready() -> void:
 	print("CrashLocal: Main._ready")
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
@@ -74,6 +76,8 @@ func _ready() -> void:
 	_build_menu()
 
 func get_world_width() -> float:
+	if game_mode == "DRIFT":
+		return 3200.0
 	return RACE_WORLD_WIDTH if game_mode == "RACE" else ARENA_WORLD_WIDTH
 
 func load_svg_tex(path: String, svg_scale: float = 1.0) -> Texture2D:
@@ -147,6 +151,8 @@ func _init_procedural_sfx() -> void:
 	sfx_streams["checkpoint"] = _make_tone_sfx(523.0, 1046.0, 0.30, 0.60, false)
 	sfx_streams["hit"] = _make_tone_sfx(420.0, 140.0, 0.24, 0.65, true)
 	sfx_streams["win"] = _make_tone_sfx(523.0, 1174.0, 0.45, 0.65, false)
+	sfx_streams["turbo"] = _make_tone_sfx(2200.0, 780.0, 0.30, 0.65, true)
+	sfx_streams["screech"] = _make_tone_sfx(1280.0, 1490.0, 0.22, 0.42, true)
 
 func _make_tone_sfx(f0: float, f1: float, dur: float, vol: float, noisy: bool) -> AudioStreamWAV:
 	var rate := 22050
@@ -203,67 +209,75 @@ func _build_menu() -> void:
 	menu = center
 
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(620, 0)
+	panel.custom_minimum_size = Vector2(720, 0)
 	center.add_child(panel)
 
 	var box := VBoxContainer.new()
-	box.custom_minimum_size = Vector2(580, 0)
+	box.custom_minimum_size = Vector2(680, 0)
 	box.add_theme_constant_override("separation", 10)
 	panel.add_child(box)
 
 	var title := Label.new()
-	title.text = "CRASH LOCAL: JUNGLE RUMBLE"
+	title.text = "CRASH LOCAL: JUNGLE & SUPRA DRIFT"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 36)
+	title.add_theme_font_size_override("font_size", 34)
 	title.add_theme_color_override("font_color", Color("#ffe66d"))
 	box.add_child(title)
 
 	var subtitle := Label.new()
-	subtitle.text = "RACE MODE  •  ARENA MODE  •  2–4 TELEFONER (LAN / HOTSPOT)"
+	subtitle.text = "RACE MODE  •  ARENA MODE  •  TOYOTA SUPRA DRIFT  •  2–4 TELEFONER"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.add_theme_color_override("font_color", Color("#9be8d8"))
 	box.add_child(subtitle)
 
 	var mode_row := HBoxContainer.new()
-	mode_row.add_theme_constant_override("separation", 12)
+	mode_row.add_theme_constant_override("separation", 10)
 	box.add_child(mode_row)
 
 	var race := Button.new()
-	race.text = "VÆLG RACE MODE (JUNGLE SPRINT)"
+	race.text = "RACE MODE"
 	race.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	race.custom_minimum_size.y = 52
 	mode_row.add_child(race)
 
 	var arena := Button.new()
-	arena.text = "VÆLG ARENA MODE (3 LIV KAMP)"
+	arena.text = "ARENA MODE"
 	arena.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	arena.custom_minimum_size.y = 52
 	mode_row.add_child(arena)
 
-	race.pressed.connect(func() -> void: _select_mode("RACE", race, arena))
-	arena.pressed.connect(func() -> void: _select_mode("ARENA", arena, race))
+	var drift := Button.new()
+	drift.text = "SUPRA DRIFT"
+	drift.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	drift.custom_minimum_size.y = 52
+	mode_row.add_child(drift)
+
+	var mode_btns: Array[Button] = [race, arena, drift]
+	race.pressed.connect(func() -> void: _select_mode("RACE", race, mode_btns))
+	arena.pressed.connect(func() -> void: _select_mode("ARENA", arena, mode_btns))
+	drift.pressed.connect(func() -> void: _select_mode("DRIFT", drift, mode_btns))
 
 	var host := Button.new()
 	host.text = "OPRET RUM PÅ DENNE TELEFON (DIN IP: %s)" % _get_local_lan_ip()
-	host.custom_minimum_size.y = 50
+	host.custom_minimum_size.y = 48
 	host.pressed.connect(_host_game)
 	box.add_child(host)
 
 	ip_input = LineEdit.new()
 	ip_input.placeholder_text = "Indtast værtens lokale IP-adresse (fx 192.168.43.1)"
 	ip_input.text = _get_local_lan_ip()
-	ip_input.custom_minimum_size.y = 44
+	ip_input.custom_minimum_size.y = 42
 	box.add_child(ip_input)
 
 	var join := Button.new()
 	join.text = "TILSLUT TIL VÆRT"
-	join.custom_minimum_size.y = 50
+	join.custom_minimum_size.y = 48
 	join.pressed.connect(_join_game)
 	box.add_child(join)
 
 	var start := Button.new()
 	start.text = "START MULTIPLAYER SPIL (VÆRT)"
-	start.custom_minimum_size.y = 54
+	start.custom_minimum_size.y = 52
 	start.modulate = Color("#ffe66d")
 	start.pressed.connect(_start_game)
 	box.add_child(start)
@@ -275,17 +289,18 @@ func _build_menu() -> void:
 	box.add_child(solo)
 
 	status_label = Label.new()
-	status_label.text = "Vælg Race/Arena. Alle telefoner skal være på samme Wi-Fi eller telefon-hotspot."
+	status_label.text = "Vælg Race, Arena eller Supra Drift. Alle telefoner skal være på samme Wi-Fi/hotspot."
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(status_label)
 
-	_select_mode("RACE", race, arena)
+	_select_mode("RACE", race, mode_btns)
 
-func _select_mode(mode: String, selected: Button, other: Button) -> void:
+func _select_mode(mode: String, selected: Button, all_buttons: Array[Button]) -> void:
 	game_mode = mode
+	for b in all_buttons:
+		b.modulate = Color.WHITE
 	selected.modulate = Color("#8cff9b")
-	other.modulate = Color.WHITE
 	_status("Valgt %s. Opret rum på værten (IP: %s) eller tilslut." % [mode, _get_local_lan_ip()])
 
 func _host_game() -> void:
@@ -340,14 +355,17 @@ func _begin_match(mode: String, include_bot: bool = false) -> void:
 		result_panel.queue_free()
 
 	_create_world()
-	_spawn_player(multiplayer.get_unique_id(), Vector2(110, FLOOR_Y - 70), false)
+	var spawn_base := Vector2(1380.0, 315.0) if game_mode == "DRIFT" else Vector2(110.0, FLOOR_Y - 70.0)
+	_spawn_player(multiplayer.get_unique_id(), spawn_base, false)
 	if multiplayer.is_server():
 		var idx := 1
 		for id in multiplayer.get_peers():
-			_spawn_player(id, Vector2(110 + idx * 65, FLOOR_Y - 70), false)
+			var offset := Vector2(-idx * 95.0, (idx % 2) * 70.0) if game_mode == "DRIFT" else Vector2(idx * 65.0, 0.0)
+			_spawn_player(id, spawn_base + offset, false)
 			idx += 1
 		if include_bot:
-			_spawn_player(99, Vector2(185, FLOOR_Y - 70), true)
+			var bot_offset := Vector2(-110.0, 75.0) if game_mode == "DRIFT" else Vector2(75.0, 0.0)
+			_spawn_player(99, spawn_base + bot_offset, true)
 	else:
 		_request_spawn.rpc_id(1, multiplayer.get_unique_id())
 	play_sfx("checkpoint")
@@ -355,7 +373,8 @@ func _begin_match(mode: String, include_bot: bool = false) -> void:
 @rpc("any_peer", "call_remote", "reliable")
 func _request_spawn(id: int) -> void:
 	if multiplayer.is_server() and multiplayer.get_remote_sender_id() == id:
-		_spawn_player.rpc(id, Vector2(160 + (id % 3) * 65, FLOOR_Y - 70), false)
+		var pos := Vector2(1290.0, 385.0) if game_mode == "DRIFT" else Vector2(160.0 + (id % 3) * 65.0, FLOOR_Y - 70.0)
+		_spawn_player.rpc(id, pos, false)
 
 func _create_world() -> void:
 	if is_instance_valid(world):
@@ -370,10 +389,29 @@ func _create_world() -> void:
 	waterfalls.clear()
 	swaying_plants.clear()
 	active_touches.clear()
+	skid_marks.clear()
+	stick_touch_id = -1
+	touch_state = {"left": false, "right": false, "analog_x": 0.0, "analog_y": 0.0, "drift_held": false}
 
 	world = Node2D.new()
 	world.name = "GameWorld"
 	add_child(world)
+
+	if game_mode == "DRIFT":
+		_build_drift_track()
+		_build_hud_and_touch()
+		camera = Camera2D.new()
+		camera.position = Vector2(1380, 340)
+		camera.limit_left = 0
+		camera.limit_right = 3200
+		camera.limit_top = 0
+		camera.limit_bottom = 1900
+		camera.zoom = Vector2(0.85, 0.85)
+		camera.position_smoothing_enabled = true
+		camera.position_smoothing_speed = 8.0
+		camera.make_current()
+		world.add_child(camera)
+		return
 
 	var w_width := get_world_width()
 	_build_parallax_jungle(w_width)
@@ -395,6 +433,166 @@ func _create_world() -> void:
 	camera.position_smoothing_speed = 7.5
 	camera.make_current()
 	world.add_child(camera)
+
+func _build_drift_track() -> void:
+	# Tropisk kyst- og jungle-driftbane (3200 x 1900 top-down)
+	var grass_bg := ColorRect.new()
+	grass_bg.position = Vector2.ZERO
+	grass_bg.size = Vector2(3200, 1900)
+	grass_bg.color = Color("#1e6b3b")
+	grass_bg.z_index = -30
+	world.add_child(grass_bg)
+
+	# Indre sø / lagune midt på banen
+	var lake_border := Polygon2D.new()
+	lake_border.polygon = PackedVector2Array([
+		Vector2(660, 560), Vector2(2540, 560), Vector2(2540, 1340), Vector2(660, 1340)
+	])
+	lake_border.color = Color("#e8c87d")
+	lake_border.z_index = -25
+	world.add_child(lake_border)
+
+	var lake := Polygon2D.new()
+	lake.polygon = PackedVector2Array([
+		Vector2(700, 600), Vector2(2500, 600), Vector2(2500, 1300), Vector2(700, 1300)
+	])
+	lake.color = Color("#1ea8d6")
+	lake.z_index = -24
+	world.add_child(lake)
+
+	# Asfalt-driftbane med chikane og hårnålesving
+	var track_outer := Polygon2D.new()
+	track_outer.polygon = PackedVector2Array([
+		Vector2(220, 200), Vector2(2980, 200), Vector2(2980, 1700), Vector2(220, 1700)
+	])
+	track_outer.color = Color("#2d323a")
+	track_outer.z_index = -20
+	world.add_child(track_outer)
+
+	var track_inner := Polygon2D.new()
+	track_inner.polygon = PackedVector2Array([
+		Vector2(540, 500), Vector2(2660, 500), Vector2(2660, 1400), Vector2(540, 1400)
+	])
+	track_inner.color = Color("#237a43")
+	track_inner.z_index = -19
+	world.add_child(track_inner)
+
+	# Rød/hvide racing-curbs langs svingene
+	var curb_rects := [
+		[Vector2(200, 180), Vector2(2800, 20), Color("#ff3b3b")],
+		[Vector2(200, 1700), Vector2(2800, 20), Color("#ff3b3b")],
+		[Vector2(200, 200), Vector2(20, 1500), Color("#ffffff")],
+		[Vector2(2980, 200), Vector2(20, 1500), Color("#ffffff")],
+		[Vector2(520, 480), Vector2(2160, 20), Color("#ffd43b")],
+		[Vector2(520, 1400), Vector2(2160, 20), Color("#ffd43b")],
+		[Vector2(520, 500), Vector2(20, 900), Color("#ff3b3b")],
+		[Vector2(2660, 500), Vector2(20, 900), Color("#ff3b3b")]
+	]
+	for cr in curb_rects:
+		var cpoly := ColorRect.new()
+		cpoly.position = cr[0]
+		cpoly.size = cr[1]
+		cpoly.color = cr[2]
+		cpoly.z_index = -18
+		world.add_child(cpoly)
+
+	# Fysiske yder- og indervægge så bilerne bliver på banen
+	_add_drift_wall(Vector2(1600, 165), Vector2(3000, 45))
+	_add_drift_wall(Vector2(1600, 1735), Vector2(3000, 45))
+	_add_drift_wall(Vector2(185, 950), Vector2(45, 1600))
+	_add_drift_wall(Vector2(3015, 950), Vector2(45, 1600))
+	_add_drift_wall(Vector2(1600, 950), Vector2(2090, 870))
+
+	# Start/Mål-linje (skakternet)
+	for row in range(10):
+		for col in range(3):
+			var sq := ColorRect.new()
+			sq.position = Vector2(1500 + col * 24, 205 + row * 29)
+			sq.size = Vector2(24, 29)
+			sq.color = Color.WHITE if (row + col) % 2 == 0 else Color("#12151a")
+			sq.z_index = -16
+			world.add_child(sq)
+
+	# Halfway checkpoint-linje nederst på banen
+	var cp_line := ColorRect.new()
+	cp_line.position = Vector2(1520, 1420)
+	cp_line.size = Vector2(24, 280)
+	cp_line.color = Color("#38f2ff", 0.55)
+	cp_line.z_index = -16
+	world.add_child(cp_line)
+
+	# Drift-zoner (gyldne markeringer i svingene)
+	for dz_pos in [Vector2(2680, 260), Vector2(2680, 1460), Vector2(280, 1460), Vector2(280, 260)]:
+		var dz := ColorRect.new()
+		dz.position = dz_pos
+		dz.size = Vector2(240, 180)
+		dz.color = Color("#ffae2b", 0.16)
+		dz.z_index = -17
+		world.add_child(dz)
+
+	# Waypoints til AI-Bot Supra
+	drift_waypoints = [
+		Vector2(2150, 340),
+		Vector2(2820, 360),
+		Vector2(2820, 950),
+		Vector2(2820, 1550),
+		Vector2(2100, 1550),
+		Vector2(1100, 1550),
+		Vector2(380, 1550),
+		Vector2(380, 950),
+		Vector2(380, 350),
+		Vector2(1100, 340)
+	]
+
+func _add_drift_wall(center_pos: Vector2, wall_size: Vector2) -> void:
+	var sb := StaticBody2D.new()
+	sb.position = center_pos
+	var cs := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = wall_size
+	cs.shape = rect
+	sb.add_child(cs)
+	world.add_child(sb)
+
+func get_drift_waypoints() -> Array[Vector2]:
+	return drift_waypoints
+
+func get_drift_stick_vector() -> Vector2:
+	return Vector2(float(touch_state.get("analog_x", 0.0)), float(touch_state.get("analog_y", 0.0)))
+
+func spawn_skid_mark(pos: Vector2, ang: float) -> void:
+	if not is_instance_valid(world):
+		return
+	var mark := Polygon2D.new()
+	mark.polygon = PackedVector2Array([
+		Vector2(-10, -3), Vector2(10, -3), Vector2(10, 3), Vector2(-10, 3)
+	])
+	mark.position = pos
+	mark.rotation = ang
+	mark.color = Color(0.06, 0.07, 0.09, 0.55)
+	mark.z_index = -15
+	world.add_child(mark)
+	skid_marks.append(mark)
+	if skid_marks.size() > 260:
+		var oldest = skid_marks.pop_front()
+		if is_instance_valid(oldest):
+			oldest.queue_free()
+
+func check_drift_lap_progress(car) -> void:
+	if not is_instance_valid(car):
+		return
+	var p: Vector2 = car.global_position
+	if drift_halfway_zone.has_point(p):
+		car.passed_halfway = true
+	elif drift_start_line.has_point(p) and car.passed_halfway:
+		car.passed_halfway = false
+		car.lap += 1
+		if car.is_local:
+			play_sfx("checkpoint")
+		if car.lap > DRIFT_TARGET_LAPS and multiplayer.is_server():
+			var final_pts: int = int(car.total_drift_score) + int(car.drift_combo_score) + 500
+			var wname: String = "BOT SUPRA" if car.is_bot else ("SPILLER %d SUPRA" % int(car.player_id))
+			_show_result.rpc("%s VANDT SUPRA DRIFT! (%d Drift-Point)" % [wname, final_pts])
 
 func _build_parallax_jungle(w_width: float) -> void:
 	var pbg := ParallaxBackground.new()
@@ -880,13 +1078,13 @@ func _build_hud_and_touch() -> void:
 
 	var hud_bg := ColorRect.new()
 	hud_bg.position = Vector2(16, 12)
-	hud_bg.size = Vector2(680, 74)
-	hud_bg.color = Color(0.05, 0.14, 0.11, 0.62)
+	hud_bg.size = Vector2(730, 74)
+	hud_bg.color = Color(0.05, 0.14, 0.11, 0.65)
 	hud_layer.add_child(hud_bg)
 
 	hud = Label.new()
 	hud.position = Vector2(28, 16)
-	hud.add_theme_font_size_override("font_size", 25)
+	hud.add_theme_font_size_override("font_size", 24)
 	hud.add_theme_color_override("font_color", Color("#ffe66d"))
 	hud.add_theme_color_override("font_shadow_color", Color("#111c15"))
 	hud.add_theme_constant_override("shadow_offset_x", 2)
@@ -899,9 +1097,16 @@ func _build_hud_and_touch() -> void:
 	sub_hud.add_theme_color_override("font_color", Color.WHITE)
 	hud_layer.add_child(sub_hud)
 
+	# Analog Controller Thumbstick nederst til venstre
 	_build_virtual_thumbstick(hud_layer)
-	_touch_button(hud_layer, "JUMP", Vector2(995, 590), Vector2(120, 100), "jump", Color("#2678d9"))
-	_touch_button(hud_layer, "SPIN", Vector2(1130, 590), Vector2(120, 100), "spin", Color("#e85d24"))
+
+	# Action-knapper nederst til højre (tilpasset Race/Arena eller Supra Drift)
+	if game_mode == "DRIFT":
+		_touch_button(hud_layer, "DRIFT", Vector2(990, 588), Vector2(125, 102), "drift", Color("#e85d24"))
+		_touch_button(hud_layer, "TURBO", Vector2(1130, 588), Vector2(125, 102), "boost", Color("#1b9cfc"))
+	else:
+		_touch_button(hud_layer, "JUMP", Vector2(995, 590), Vector2(120, 100), "jump", Color("#2678d9"))
+		_touch_button(hud_layer, "SPIN", Vector2(1130, 590), Vector2(120, 100), "spin", Color("#e85d24"))
 
 func _build_virtual_thumbstick(layer: CanvasLayer) -> void:
 	stick_base = Control.new()
@@ -916,7 +1121,7 @@ func _build_virtual_thumbstick(layer: CanvasLayer) -> void:
 		var a: float = float(i) / 32.0 * TAU
 		pts_outer.append(Vector2(stick_radius + cos(a) * stick_radius, stick_radius + sin(a) * stick_radius))
 	outer_ring.polygon = pts_outer
-	outer_ring.color = Color(0.12, 0.32, 0.25, 0.52)
+	outer_ring.color = Color(0.10, 0.28, 0.22, 0.56)
 	stick_base.add_child(outer_ring)
 
 	var inner_ring := Polygon2D.new()
@@ -925,7 +1130,7 @@ func _build_virtual_thumbstick(layer: CanvasLayer) -> void:
 		var a: float = float(i) / 32.0 * TAU
 		pts_inner.append(Vector2(stick_radius + cos(a) * (stick_radius - 5.0), stick_radius + sin(a) * (stick_radius - 5.0)))
 	inner_ring.polygon = pts_inner
-	inner_ring.color = Color(0.55, 0.92, 0.76, 0.22)
+	inner_ring.color = Color(0.55, 0.92, 0.76, 0.24)
 	stick_base.add_child(inner_ring)
 
 	stick_knob = Control.new()
@@ -950,21 +1155,16 @@ func _touch_button(layer: CanvasLayer, text: String, pos: Vector2, bsize: Vector
 	b.modulate = col.lightened(0.25)
 	b.add_theme_font_size_override("font_size", 24)
 	layer.add_child(b)
-	touch_rects[action] = Rect2(pos - Vector2(8, 8), bsize + Vector2(16, 16))
+	touch_rects[action] = Rect2(pos - Vector2(10, 10), bsize + Vector2(20, 20))
 	b.button_down.connect(func():
 		b.scale = Vector2(0.92, 0.92)
-		if action in ["left", "right"]:
-			button_down_state[action] = true
 		_set_touch(action, true)
 	)
 	b.button_up.connect(func():
 		b.scale = Vector2.ONE
-		if action in ["left", "right"]:
-			button_down_state[action] = false
 		_set_touch(action, false)
 	)
 
-# Ægte Android Multi-Touch understøttelse (glid finger mellem ◀ og ▶ mens JUMP/SPIN trykkes)
 func _input(event: InputEvent) -> void:
 	if not game_started:
 		return
@@ -976,7 +1176,11 @@ func _input(event: InputEvent) -> void:
 				jump_queued = true
 			elif touch_rects.has("spin") and touch_rects["spin"].has_point(st.position):
 				spin_queued = true
-			elif stick_touch_id == -1 and st.position.x < 540.0 and st.position.y > 320.0:
+			elif touch_rects.has("boost") and touch_rects["boost"].has_point(st.position):
+				boost_queued = true
+			elif touch_rects.has("drift") and touch_rects["drift"].has_point(st.position):
+				touch_state["drift_held"] = true
+			elif stick_touch_id == -1 and st.position.x < 560.0 and st.position.y > 300.0:
 				stick_touch_id = st.index
 				_update_thumbstick(st.position)
 		else:
@@ -984,6 +1188,8 @@ func _input(event: InputEvent) -> void:
 			if st.index == stick_touch_id:
 				stick_touch_id = -1
 				_reset_thumbstick()
+			if touch_rects.has("drift") and touch_rects["drift"].has_point(st.position):
+				touch_state["drift_held"] = false
 	elif event is InputEventScreenDrag:
 		var sd := event as InputEventScreenDrag
 		active_touches[sd.index] = sd.position
@@ -995,17 +1201,21 @@ func _update_thumbstick(touch_pos: Vector2) -> void:
 	var clamped: Vector2 = delta_vec.limit_length(stick_radius)
 	if is_instance_valid(stick_knob):
 		stick_knob.position = Vector2(stick_radius, stick_radius) + clamped
-	var norm_x: float = clamped.x / stick_radius
-	if absf(norm_x) < 0.14:
-		norm_x = 0.0
-	touch_state["analog_x"] = norm_x
-	touch_state["left"] = norm_x < -0.14
-	touch_state["right"] = norm_x > 0.14
+	var norm: Vector2 = clamped / stick_radius
+	if absf(norm.x) < 0.14:
+		norm.x = 0.0
+	if absf(norm.y) < 0.14:
+		norm.y = 0.0
+	touch_state["analog_x"] = norm.x
+	touch_state["analog_y"] = norm.y
+	touch_state["left"] = norm.x < -0.14
+	touch_state["right"] = norm.x > 0.14
 
 func _reset_thumbstick() -> void:
 	if is_instance_valid(stick_knob):
 		stick_knob.position = Vector2(stick_radius, stick_radius)
 	touch_state["analog_x"] = 0.0
+	touch_state["analog_y"] = 0.0
 	touch_state["left"] = false
 	touch_state["right"] = false
 
@@ -1015,7 +1225,10 @@ func _spawn_player(id: int, pos: Vector2, is_bot: bool = false) -> void:
 		return
 	var p = CharacterBody2D.new()
 	p.name = "Player_%d" % id
-	p.set_script(PLAYER_SCRIPT)
+	if game_mode == "DRIFT":
+		p.set_script(DRIFT_CAR_SCRIPT)
+	else:
+		p.set_script(PLAYER_SCRIPT)
 	p.player_id = id
 	p.is_bot = is_bot
 	p.is_local = (id == multiplayer.get_unique_id()) and not is_bot
@@ -1056,7 +1269,8 @@ func _status(message: String) -> void:
 func _on_peer_connected(id: int) -> void:
 	_status("Telefon #%d tilsluttet! (%d spillere klar)" % [id, multiplayer.get_peers().size() + 1])
 	if game_started and multiplayer.is_server():
-		_spawn_player.rpc(id, Vector2(140.0 + (id % 3) * 60.0, FLOOR_Y - 70.0), false)
+		var spawn_p := Vector2(1290.0, 385.0) if game_mode == "DRIFT" else Vector2(140.0 + (id % 3) * 60.0, FLOOR_Y - 70.0)
+		_spawn_player.rpc(id, spawn_p, false)
 
 func _set_touch(action: String, pressed: bool) -> void:
 	if action == "jump":
@@ -1065,6 +1279,11 @@ func _set_touch(action: String, pressed: bool) -> void:
 	elif action == "spin":
 		if pressed:
 			spin_queued = true
+	elif action == "boost":
+		if pressed:
+			boost_queued = true
+	elif action == "drift":
+		touch_state["drift_held"] = pressed
 	else:
 		touch_state[action] = pressed
 
@@ -1077,8 +1296,13 @@ func consume_action(action: String) -> bool:
 		var result := spin_queued
 		spin_queued = false
 		return result
+	if action == "boost":
+		var result := boost_queued
+		boost_queued = false
+		return result
 	return false
 
+# Netværkssynkronisering til Race & Arena
 func submit_local_state(id: int, pos: Vector2, vel: Vector2, face: float, spin: bool, anim: String = "idle", lvs: int = 3, frt: int = 0, msk: bool = false) -> void:
 	if not multiplayer.has_multiplayer_peer():
 		return
@@ -1093,7 +1317,7 @@ func _submit_state(id: int, pos: Vector2, vel: Vector2, face: float, spin: bool,
 		_apply_state(id, pos, vel, face, spin, anim, lvs, frt, msk)
 
 func _apply_state(id: int, pos: Vector2, vel: Vector2, face: float, spin: bool, anim: String, lvs: int, frt: int, msk: bool) -> void:
-	if not players.has(id):
+	if not players.has(id) or game_mode == "DRIFT":
 		return
 	var p = players[id]
 	if not is_instance_valid(p):
@@ -1109,7 +1333,7 @@ func _apply_state(id: int, pos: Vector2, vel: Vector2, face: float, spin: bool, 
 
 @rpc("authority", "call_remote", "unreliable_ordered")
 func _broadcast_state(id: int, pos: Vector2, vel: Vector2, face: float, spin: bool, anim: String, lvs: int, frt: int, msk: bool) -> void:
-	if players.has(id) and id != multiplayer.get_unique_id():
+	if players.has(id) and id != multiplayer.get_unique_id() and game_mode != "DRIFT":
 		var p = players[id]
 		if is_instance_valid(p):
 			p.network_position = pos
@@ -1121,22 +1345,70 @@ func _broadcast_state(id: int, pos: Vector2, vel: Vector2, face: float, spin: bo
 			p.fruits = frt
 			p.has_mask = msk
 
+# Netværkssynkronisering til Toyota Supra Drift Mode
+func submit_drift_state(id: int, pos: Vector2, vel: Vector2, rot: float, drifting: bool, boosting: bool, score: int, lp: int) -> void:
+	if not multiplayer.has_multiplayer_peer():
+		return
+	if multiplayer.is_server():
+		_apply_drift_state(id, pos, vel, rot, drifting, boosting, score, lp)
+	else:
+		_submit_drift_state.rpc_id(1, id, pos, vel, rot, drifting, boosting, score, lp)
+
+@rpc("any_peer", "call_remote", "unreliable_ordered")
+func _submit_drift_state(id: int, pos: Vector2, vel: Vector2, rot: float, drifting: bool, boosting: bool, score: int, lp: int) -> void:
+	if multiplayer.is_server() and multiplayer.get_remote_sender_id() == id:
+		_apply_drift_state(id, pos, vel, rot, drifting, boosting, score, lp)
+
+func _apply_drift_state(id: int, pos: Vector2, vel: Vector2, rot: float, drifting: bool, boosting: bool, score: int, lp: int) -> void:
+	if not players.has(id) or game_mode != "DRIFT":
+		return
+	var p = players[id]
+	if not is_instance_valid(p):
+		return
+	p.network_position = pos
+	p.network_velocity = vel
+	p.network_rotation = rot
+	p.network_drifting = drifting
+	p.network_boosting = boosting
+	p.network_score = score
+	p.network_lap = lp
+
+@rpc("authority", "call_remote", "unreliable_ordered")
+func _broadcast_drift_state(id: int, pos: Vector2, vel: Vector2, rot: float, drifting: bool, boosting: bool, score: int, lp: int) -> void:
+	if players.has(id) and id != multiplayer.get_unique_id() and game_mode == "DRIFT":
+		var p = players[id]
+		if is_instance_valid(p):
+			p.network_position = pos
+			p.network_velocity = vel
+			p.network_rotation = rot
+			p.network_drifting = drifting
+			p.network_boosting = boosting
+			p.network_score = score
+			p.network_lap = lp
+
 func _process(delta: float) -> void:
 	if not game_started:
 		return
 
 	env_time += delta
-	_update_world_animations(delta)
+	if game_mode != "DRIFT":
+		_update_world_animations(delta)
 
 	if is_instance_valid(local_player) and is_instance_valid(camera):
-		var w_width := get_world_width()
-		var look_ahead: float = float(local_player.facing) * 95.0
-		var target_x: float = clampf(float(local_player.position.x) + look_ahead, 640.0, w_width - 640.0)
 		var shake_offset := Vector2.ZERO
 		if camera_shake > 0.1:
 			shake_offset = Vector2(randf_range(-camera_shake, camera_shake), randf_range(-camera_shake, camera_shake))
 			camera_shake = lerpf(camera_shake, 0.0, delta * 10.0)
-		camera.position = Vector2(target_x, 360.0) + shake_offset
+		if game_mode == "DRIFT":
+			var look_vec: Vector2 = (local_player.velocity as Vector2) * 0.25
+			var cam_x: float = clampf(float(local_player.position.x) + look_vec.x, 740.0, 2460.0)
+			var cam_y: float = clampf(float(local_player.position.y) + look_vec.y, 420.0, 1480.0)
+			camera.position = Vector2(cam_x, cam_y) + shake_offset
+		else:
+			var w_width := get_world_width()
+			var look_ahead: float = float(local_player.facing) * 95.0
+			var target_x: float = clampf(float(local_player.position.x) + look_ahead, 640.0, w_width - 640.0)
+			camera.position = Vector2(target_x, 360.0) + shake_offset
 
 	net_tick_accum += delta
 	if multiplayer.has_multiplayer_peer() and multiplayer.is_server():
@@ -1145,11 +1417,21 @@ func _process(delta: float) -> void:
 			for id in players.keys():
 				var p = players[id]
 				if is_instance_valid(p):
-					var sync_pos: Vector2 = p.position if (p.is_local or p.is_bot) else p.network_position
-					var sync_vel: Vector2 = p.velocity if (p.is_local or p.is_bot) else p.network_velocity
-					var sync_spin: bool = p.spinning if (p.is_local or p.is_bot) else p.network_spinning
-					var sync_anim: String = p.anim_state if (p.is_local or p.is_bot) else p.network_anim
-					_broadcast_state.rpc(id, sync_pos, sync_vel, p.facing, sync_spin, sync_anim, p.lives, p.fruits, p.has_mask)
+					if game_mode == "DRIFT":
+						var d_pos: Vector2 = p.global_position if (p.is_local or p.is_bot) else p.network_position
+						var d_vel: Vector2 = p.velocity if (p.is_local or p.is_bot) else p.network_velocity
+						var d_rot: float = p.car_angle if (p.is_local or p.is_bot) else p.network_rotation
+						var d_drf: bool = p.is_drifting if (p.is_local or p.is_bot) else p.network_drifting
+						var d_bst: bool = (p.boost_timer > 0.0) if (p.is_local or p.is_bot) else p.network_boosting
+						var d_scr: int = (int(p.total_drift_score) + int(p.drift_combo_score)) if (p.is_local or p.is_bot) else int(p.network_score)
+						var d_lap: int = int(p.lap) if (p.is_local or p.is_bot) else int(p.network_lap)
+						_broadcast_drift_state.rpc(id, d_pos, d_vel, d_rot, d_drf, d_bst, d_scr, d_lap)
+					else:
+						var sync_pos: Vector2 = p.position if (p.is_local or p.is_bot) else p.network_position
+						var sync_vel: Vector2 = p.velocity if (p.is_local or p.is_bot) else p.network_velocity
+						var sync_spin: bool = p.spinning if (p.is_local or p.is_bot) else p.network_spinning
+						var sync_anim: String = p.anim_state if (p.is_local or p.is_bot) else p.network_anim
+						_broadcast_state.rpc(id, sync_pos, sync_vel, p.facing, sync_spin, sync_anim, p.lives, p.fruits, p.has_mask)
 
 		if game_mode == "ARENA":
 			arena_timer -= delta
@@ -1218,6 +1500,13 @@ func _update_world_animations(delta: float) -> void:
 func _update_hud_text() -> void:
 	if not is_instance_valid(hud) or not is_instance_valid(local_player):
 		return
+	if game_mode == "DRIFT":
+		var pts: int = int(local_player.total_drift_score) + int(local_player.drift_combo_score)
+		var turbo_pct: int = int(local_player.boost_charge)
+		hud.text = "TOYOTA SUPRA DRIFT  •  OMGANG %d/%d  •  DRIFT POINT: %d" % [int(local_player.lap), DRIFT_TARGET_LAPS, pts]
+		sub_hud.text = "Biler: %d  •  TURBO: %d%% (Hold DRIFT i svingene, tryk TURBO!)" % [players.size(), turbo_pct]
+		return
+
 	var mask_txt: String = "  •  TIKI-SKJOLD AKTIVT!" if local_player.has_mask else ""
 	if game_mode == "RACE":
 		var pct: int = clampi(int((float(local_player.position.x) / (RACE_WORLD_WIDTH - 150.0)) * 100.0), 0, 100)
@@ -1312,27 +1601,3 @@ func _show_result(message: String) -> void:
 	button.custom_minimum_size = Vector2(320, 56)
 	button.pressed.connect(func(): get_tree().reload_current_scene())
 	v.add_child(button)
-
-
-# --- SUPRA DRIFT BATTLE MODE HOOK ---
-var _drift_instance: Node2D = null
-
-func _launch_supra_drift_mode() -> void:
-	if _drift_instance != null:
-		return
-	for child in get_children():
-		if child is CanvasItem:
-			child.visible = false
-	var DriftScript = load("res://scripts/drift_mode.gd")
-	_drift_instance = DriftScript.new()
-	_drift_instance.is_solo_bot = true
-	_drift_instance.exit_to_menu.connect(_close_supra_drift_mode)
-	add_child(_drift_instance)
-
-func _close_supra_drift_mode() -> void:
-	if _drift_instance != null:
-		_drift_instance.queue_free()
-		_drift_instance = null
-	for child in get_children():
-		if child is CanvasItem:
-			child.visible = true

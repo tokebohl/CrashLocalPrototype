@@ -70,7 +70,6 @@ func _ready() -> void:
 	add_child(cs)
 
 func _draw_character() -> void:
-	# Dynamisk jordskygge under spilleren
 	shadow_poly = Polygon2D.new()
 	var pts := PackedVector2Array()
 	for i in range(12):
@@ -93,7 +92,6 @@ func _draw_character() -> void:
 	hero_sprite.modulate = PLAYER_TINTS[tint_idx]
 	visual_root.add_child(hero_sprite)
 
-	# Svævende Tiki-beskyttelsesmaske
 	mask_pivot = Node2D.new()
 	mask_pivot.position = Vector2(0, -34)
 	add_child(mask_pivot)
@@ -106,7 +104,6 @@ func _draw_character() -> void:
 	mask_sprite.visible = false
 	mask_pivot.add_child(mask_sprite)
 
-	# Svimmelheds-stjerner ved hit/death
 	dizzy_root = Node2D.new()
 	dizzy_root.position = Vector2(0, -68)
 	dizzy_root.visible = false
@@ -122,7 +119,6 @@ func _draw_character() -> void:
 		star.position = Vector2(cos(i * TAU / 3.0) * 20.0, sin(i * TAU / 3.0) * 6.0)
 		dizzy_root.add_child(star)
 
-	# Løbe-, hop- og landingsstøv
 	dust_particles = CPUParticles2D.new()
 	dust_particles.position = Vector2(0, 0)
 	dust_particles.emitting = false
@@ -140,7 +136,6 @@ func _draw_character() -> void:
 	dust_particles.color = Color(0.95, 0.92, 0.80, 0.78)
 	add_child(dust_particles)
 
-	# Tornado-spin gnister/blade
 	spin_particles = CPUParticles2D.new()
 	spin_particles.position = Vector2(0, -26)
 	spin_particles.emitting = false
@@ -457,7 +452,6 @@ func _animate(delta: float) -> void:
 
 	hero_sprite.flip_h = (facing < 0.0)
 
-	# Skift sprite-frame ud fra de 25 dedikerede SVG-frames (idle, run, jump, fall, land, spin, hit, death)
 	var main = get_tree().current_scene
 	if main and main.has_method("get_hero_frame"):
 		var frame_tex: Texture2D = main.get_hero_frame(anim_state, anim_time)

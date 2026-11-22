@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="96" viewBox="0 0 180 96">
+<defs>
+  <linearGradient id="bodyShade" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ffffff"/>
+    <stop offset="0.5" stop-color="#e8edf2"/>
+    <stop offset="1" stop-color="#b4bec9"/>
+  </linearGradient>
+  <linearGradient id="glass" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#111b24"/>
+    <stop offset="0.5" stop-color="#284257"/>
+    <stop offset="1" stop-color="#0f171f"/>
+  </linearGradient>
+  <linearGradient id="hoodVent" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#2b3138"/>
+    <stop offset="1" stop-color="#5a6470"/>
+  </linearGradient>
+</defs>
+<!-- Soft Drop Shadow -->
+<rect x="10" y="10" width="162" height="78" rx="22" fill="#080c10" opacity="0.45"/>
+
+<!-- Wide Performance Tires (4 corners) -->
+<rect x="26" y="6" width="34" height="14" rx="5" fill="#181c20" stroke="#080a0c" stroke-width="2.5"/>
+<rect x="118" y="6" width="34" height="14" rx="5" fill="#181c20" stroke="#080a0c" stroke-width="2.5"/>
+<rect x="26" y="76" width="34" height="14" rx="5" fill="#181c20" stroke="#080a0c" stroke-width="2.5"/>
+<rect x="118" y="76" width="34" height="14" rx="5" fill="#181c20" stroke="#080a0c" stroke-width="2.5"/>
+
+<!-- Sculpted MK4 Coupe Body -->
+<path d="M16 24 Q20 12 46 12 L134 12 Q164 14 170 30 L172 48 L170 66 Q164 82 134 84 L46 84 Q20 84 16 72 Q12 48 16 24 Z" fill="url(#bodyShade)" stroke="#1b222c" stroke-width="3.5"/>
+
+<!-- Muscular Rear Fender Flares & Side Skirts -->
+<path d="M24 14 Q48 18 68 15 M24 82 Q48 78 68 81" fill="none" stroke="#8b96a3" stroke-width="3" stroke-linecap="round"/>
+<path d="M114 15 Q138 18 158 18 M114 81 Q138 78 158 78" fill="none" stroke="#8b96a3" stroke-width="3" stroke-linecap="round"/>
+
+<!-- Front Bumper & Intercooler Intake -->
+<path d="M164 28 Q174 48 164 68 L156 64 Q162 48 156 32 Z" fill="#1b222a"/>
+<!-- Iconic Triple-Projector Headlights -->
+<path d="M150 16 Q164 19 167 28 L154 30 Q148 23 150 16 Z" fill="#e6f9ff" stroke="#222a33" stroke-width="2"/>
+<path d="M150 80 Q164 77 167 68 L154 66 Q148 73 150 80 Z" fill="#e6f9ff" stroke="#222a33" stroke-width="2"/>
+<circle cx="158" cy="23" r="2.4" fill="#ffffff"/>
+<circle cx="158" cy="73" r="2.4" fill="#ffffff"/>
+
+<!-- Hood Lines & Twin-Turbo Vent -->
+<path d="M114 24 L152 28 M114 72 L152 68" stroke="#9aa5b1" stroke-width="2.5" stroke-linecap="round"/>
+<rect x="124" y="38" width="18" height="20" rx="4" fill="url(#hoodVent)" stroke="#232930" stroke-width="1.5"/>
+
+<!-- Wrap-around Tinted Windshield & Fastback Rear Window -->
+<path d="M92 20 Q114 22 120 34 L120 62 Q114 74 92 76 L84 68 L84 28 Z" fill="url(#glass)" stroke="#11161d" stroke-width="2.5"/>
+<!-- Roof Panel -->
+<rect x="52" y="25" width="34" height="46" rx="8" fill="url(#bodyShade)" stroke="#6c7785" stroke-width="2"/>
+<!-- Rear Fastback Glass -->
+<path d="M32 26 L52 25 L52 71 L32 70 Q26 48 32 26 Z" fill="url(#glass)" stroke="#11161d" stroke-width="2.5"/>
+
+<!-- Side Mirrors -->
+<ellipse cx="104" cy="11" rx="7" ry="4" fill="url(#bodyShade)" stroke="#1b222c" stroke-width="2"/>
+<ellipse cx="104" cy="85" rx="7" ry="4" fill="url(#bodyShade)" stroke="#1b222c" stroke-width="2"/>
+
+<!-- Iconic MK4 Tall Hoop Rear Spoiler -->
+<rect x="12" y="13" width="12" height="70" rx="4" fill="url(#bodyShade)" stroke="#1b222c" stroke-width="3"/>
+<rect x="10" y="12" width="14" height="10" rx="2" fill="#232a34"/>
+<rect x="10" y="74" width="14" height="10" rx="2" fill="#232a34"/>
+
+<!-- Quad Tail Lights & Titanium Exhaust Tip -->
+<rect x="13" y="25" width="4" height="14" rx="2" fill="#ff2e3b"/>
+<rect x="13" y="57" width="4" height="14" rx="2" fill="#ff2e3b"/>
+<rect x="6" y="64" width="9" height="7" rx="2" fill="#9fb3c8" stroke="#1b222c" stroke-width="1.5"/>
+</svg>
