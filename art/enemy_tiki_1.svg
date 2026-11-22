@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="140" viewBox="0 0 120 140">
+<ellipse cx="60" cy="132" rx="34" ry="7" fill="#0d261e" opacity="0.35"/>
+<rect x="28" y="116" width="18" height="14" rx="5" fill="#5e3216" stroke="#291407" stroke-width="3.5"/>
+<rect x="74" y="116" width="18" height="14" rx="5" fill="#5e3216" stroke="#291407" stroke-width="3.5"/>
+<g transform="translate(0, 0)">
+  <polygon points="32,90 88,90 96,118 24,118" fill="#52b83b" stroke="#1b4d12" stroke-width="4"/>
+  <rect x="30" y="28" width="60" height="68" rx="10" fill="#8f4c22" stroke="#361907" stroke-width="4.5"/>
+  <polygon points="44,28 32,6 54,24" fill="#ff3f34" stroke="#361907" stroke-width="3"/>
+  <polygon points="60,28 60,4 70,26" fill="#ffd32a" stroke="#361907" stroke-width="3"/>
+  <polygon points="76,28 88,6 66,24" fill="#0fbcf9" stroke="#361907" stroke-width="3"/>
+  <polygon points="38,48 56,54 40,60" fill="#ffea3b" stroke="#361907" stroke-width="2.5"/>
+  <polygon points="82,48 64,54 80,60" fill="#ffea3b" stroke="#361907" stroke-width="2.5"/>
+  <rect x="40" y="72" width="40" height="14" rx="3" fill="#ffffff" stroke="#361907" stroke-width="3"/>
+  <path d="M50 72 V86 M60 72 V86 M70 72 V86" stroke="#361907" stroke-width="3"/>
+  <rect x="14" y="24" width="7" height="102" fill="#63371a" stroke="#291407" stroke-width="3"/>
+  <polygon points="17.5,4 8,28 27,28" fill="#d2dae2" stroke="#2f3542" stroke-width="3"/>
+</g>
+</svg>

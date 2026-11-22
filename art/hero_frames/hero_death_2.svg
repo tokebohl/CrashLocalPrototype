@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="150" viewBox="0 0 128 150"><defs>
+<linearGradient id="fur" x1="0" y1="0" x2="0.8" y2="1">
+  <stop offset="0" stop-color="#ffc34d"/>
+  <stop offset="0.45" stop-color="#f26b1d"/>
+  <stop offset="1" stop-color="#9e2a12"/>
+</linearGradient>
+<linearGradient id="furDark" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#d94e16"/>
+  <stop offset="1" stop-color="#751c0b"/>
+</linearGradient>
+<linearGradient id="belly" x1="0.2" y1="0" x2="0.8" y2="1">
+  <stop offset="0" stop-color="#fff0b8"/>
+  <stop offset="0.6" stop-color="#ffbf66"/>
+  <stop offset="1" stop-color="#d97b29"/>
+</linearGradient>
+<linearGradient id="pants" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#3a94eb"/>
+  <stop offset="0.55" stop-color="#1d5ea8"/>
+  <stop offset="1" stop-color="#0f3463"/>
+</linearGradient>
+<linearGradient id="boot" x1="0" y1="0" x2="1" y2="1">
+  <stop offset="0" stop-color="#ffe76b"/>
+  <stop offset="0.55" stop-color="#f29d24"/>
+  <stop offset="1" stop-color="#9c3311"/>
+</linearGradient>
+<linearGradient id="glove" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#a6633c"/>
+  <stop offset="1" stop-color="#4f2915"/>
+</linearGradient>
+<linearGradient id="spinGrad" x1="0" y1="0" x2="1" y2="0">
+  <stop offset="0" stop-color="#ffe680" stop-opacity="0.95"/>
+  <stop offset="0.35" stop-color="#f56e1e" stop-opacity="0.98"/>
+  <stop offset="0.7" stop-color="#2678d9" stop-opacity="0.9"/>
+  <stop offset="1" stop-color="#ffba42" stop-opacity="0.95"/>
+</linearGradient>
+</defs>
+<ellipse cx="64" cy="141" rx="44" ry="8" fill="#0c261e" opacity="0.4"/>
+<g transform="translate(64, 99.2) rotate(-45) translate(-64, -88)">
+  <path d="M42 84 L84 84 L88 112 L40 112 Z" fill="url(#pants)" stroke="#113461" stroke-width="4"/>
+  <path d="M38 50 Q64 42 88 52 L84 90 Q64 96 42 90 Z" fill="url(#fur)" stroke="#6e200d" stroke-width="4"/>
+  <ellipse cx="66" cy="72" rx="16" ry="18" fill="url(#belly)"/>
+  <path d="M36 34 Q36 12 62 12 Q88 12 92 34 L90 54 Q64 64 38 52 Z" fill="url(#fur)" stroke="#6e200d" stroke-width="4.5"/>
+  <path d="M48 40 Q70 34 94 42 Q108 48 96 58 Q76 66 50 56 Z" fill="url(#belly)" stroke="#6e200d" stroke-width="3.5"/>
+  <ellipse cx="96" cy="44" rx="10" ry="8" fill="#241e1c" stroke="#fff3d6" stroke-width="2"/>
+  <path d="M52 28 L64 40 M64 28 L52 40 M74 28 L86 40 M86 28 L74 40" stroke="#24160e" stroke-width="4" stroke-linecap="round"/>
+  <path d="M18 124 L48 122 L50 136 L16 136 Z M78 122 L108 124 L110 136 L76 136 Z" fill="url(#boot)" stroke="#5c2810" stroke-width="4"/>
+</g>
+<polygon points="88.5,26.4 91.5,32.4 97.5,32.4 92.5,36.4 94.5,42.4 88.5,38.4 82.5,42.4 84.5,36.4 79.5,32.4 85.5,32.4" fill="#ffef5c" stroke="#c96b12" stroke-width="2"/><polygon points="33.9,23.4 36.9,29.4 42.9,29.4 37.9,33.4 39.9,39.4 33.9,35.4 27.9,39.4 29.9,33.4 24.9,29.4 30.9,29.4" fill="#ffef5c" stroke="#c96b12" stroke-width="2"/><polygon points="69.6,10.2 72.6,16.2 78.6,16.2 73.6,20.2 75.6,26.2 69.6,22.2 63.6,26.2 65.6,20.2 60.6,16.2 66.6,16.2" fill="#ffef5c" stroke="#c96b12" stroke-width="2"/>
+</svg>

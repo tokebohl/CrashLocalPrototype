@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="56" viewBox="0 0 240 56">
+<defs><linearGradient id="goldStone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd966"/><stop offset="0.4" stop-color="#b87d28"/><stop offset="1" stop-color="#593712"/></linearGradient></defs>
+<polygon points="8,8 232,8 216,48 24,48" fill="url(#goldStone)" stroke="#2e1b08" stroke-width="4.5"/>
+<rect x="14" y="6" width="212" height="10" rx="4" fill="#7be356" stroke="#1b5924" stroke-width="3"/>
+<g fill="#42f5ec" stroke="#0d5e63" stroke-width="2"><circle cx="52" cy="28" r="7"/><polygon points="120,19 130,28 120,37 110,28"/><circle cx="188" cy="28" r="7"/></g>
+</svg>

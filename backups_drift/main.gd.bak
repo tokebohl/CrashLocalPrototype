@@ -1,0 +1,1247 @@
+extends Node2D
+
+const PORT := 24567
+const MAX_CLIENTS := 3
+const PLAYER_SCRIPT := preload("res://scripts/player.gd")
+const RACE_WORLD_WIDTH := 6400.0
+const ARENA_WORLD_WIDTH := 2200.0
+const FLOOR_Y := 610.0
+const NET_TICK_INTERVAL := 0.033 # 30 Hz ENet multiplayer synkronisering
+
+var peer: ENetMultiplayerPeer
+var players: Dictionary = {}
+var game_mode := "RACE"
+var game_started := false
+var menu: Control
+var menu_bg: Control
+var status_label: Label
+var ip_input: LineEdit
+var world: Node2D
+var hud_layer: CanvasLayer
+var hud: Label
+var sub_hud: Label
+var touch_state := {"left": false, "right": false}
+var touch_rects: Dictionary = {}
+var active_touches: Dictionary = {}
+var button_down_state := {"left": false, "right": false}
+var jump_queued := false
+var spin_queued := false
+var local_player
+var camera: Camera2D
+var finishers: Array[int] = []
+var arena_timer := 90.0
+var result_panel: Control
+
+# Grafik-, animations-, objekt- og lyd-containere
+var tex_cache: Dictionary = {}
+var hero_anim_frames: Dictionary = {}
+var sfx_streams: Dictionary = {}
+var crates: Dictionary = {}
+var fruits_map: Dictionary = {}
+var enemies: Dictionary = {}
+var moving_platforms: Array[Dictionary] = []
+var waterfalls: Array[Sprite2D] = []
+var swaying_plants: Array[Node2D] = []
+var waterfall_frames: Array[Texture2D] = []
+var crab_frames: Array[Texture2D] = []
+var tiki_frames: Array[Texture2D] = []
+var env_time := 0.0
+var net_tick_accum := 0.0
+var camera_shake := 0.0
+
+func _ready() -> void:
+	print("CrashLocal: Main._ready")
+	multiplayer.peer_connected.connect(_on_peer_connected)
+	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
+	multiplayer.connected_to_server.connect(_on_connected)
+	multiplayer.connection_failed.connect(_on_connection_failed)
+	multiplayer.server_disconnected.connect(_on_server_disconnected)
+	_init_procedural_sfx()
+	_preload_animation_textures()
+	_build_menu()
+
+func get_world_width() -> float:
+	return RACE_WORLD_WIDTH if game_mode == "RACE" else ARENA_WORLD_WIDTH
+
+func load_svg_tex(path: String, svg_scale: float = 1.0) -> Texture2D:
+	var key: String = "%s@%.2f" % [path, svg_scale]
+	if tex_cache.has(key):
+		return tex_cache[key]
+	if FileAccess.file_exists(path) and path.ends_with(".svg"):
+		var svg_str := FileAccess.get_file_as_string(path)
+		if not svg_str.is_empty():
+			var img := Image.new()
+			if img.load_svg_from_string(svg_str, svg_scale) == OK and not img.is_empty():
+				var tex := ImageTexture.create_from_image(img)
+				tex_cache[key] = tex
+				return tex
+	if ResourceLoader.exists(path):
+		var loaded: Texture2D = load(path)
+		if loaded != null:
+			tex_cache[key] = loaded
+			return loaded
+	return null
+
+func _preload_animation_textures() -> void:
+	waterfall_frames = [
+		load_svg_tex("res://art/waterfall_1.svg"),
+		load_svg_tex("res://art/waterfall_2.svg"),
+		load_svg_tex("res://art/waterfall_3.svg")
+	]
+	crab_frames = [
+		load_svg_tex("res://art/enemy_crab_1.svg"),
+		load_svg_tex("res://art/enemy_crab_2.svg")
+	]
+	tiki_frames = [
+		load_svg_tex("res://art/enemy_tiki_1.svg"),
+		load_svg_tex("res://art/enemy_tiki_2.svg")
+	]
+	var counts := {"idle": 4, "run": 6, "jump": 2, "fall": 2, "land": 2, "spin": 4, "hit": 2, "death": 3}
+	for st in counts.keys():
+		var arr: Array[Texture2D] = []
+		for i in range(counts[st]):
+			var t := load_svg_tex("res://art/hero_frames/hero_%s_%d.svg" % [st, i + 1])
+			if t != null:
+				arr.append(t)
+		hero_anim_frames[st] = arr
+
+func get_hero_frame(state: String, anim_time: float) -> Texture2D:
+	if not hero_anim_frames.has(state):
+		state = "idle"
+	var arr: Array = hero_anim_frames.get(state, [])
+	if arr.is_empty():
+		return load_svg_tex("res://art/hero.svg")
+	var fps := 8.0
+	match state:
+		"idle": fps = 5.0
+		"run": fps = 14.0
+		"spin": fps = 22.0
+		"jump", "fall", "land", "hit": fps = 8.0
+		"death": fps = 4.0
+	var idx := int(anim_time * fps) % arr.size()
+	if state == "death":
+		idx = mini(arr.size() - 1, int(anim_time * fps))
+	return arr[idx]
+
+func _init_procedural_sfx() -> void:
+	sfx_streams["jump"] = _make_tone_sfx(240.0, 680.0, 0.16, 0.55, false)
+	sfx_streams["spin"] = _make_tone_sfx(180.0, 320.0, 0.28, 0.55, true)
+	sfx_streams["crate"] = _make_tone_sfx(210.0, 95.0, 0.18, 0.65, true)
+	sfx_streams["fruit"] = _make_tone_sfx(587.0, 880.0, 0.14, 0.55, false)
+	sfx_streams["bounce"] = _make_tone_sfx(300.0, 920.0, 0.24, 0.60, false)
+	sfx_streams["beep"] = _make_tone_sfx(980.0, 980.0, 0.09, 0.50, false)
+	sfx_streams["explosion"] = _make_tone_sfx(110.0, 42.0, 0.42, 0.80, true)
+	sfx_streams["checkpoint"] = _make_tone_sfx(523.0, 1046.0, 0.30, 0.60, false)
+	sfx_streams["hit"] = _make_tone_sfx(420.0, 140.0, 0.24, 0.65, true)
+	sfx_streams["win"] = _make_tone_sfx(523.0, 1174.0, 0.45, 0.65, false)
+
+func _make_tone_sfx(f0: float, f1: float, dur: float, vol: float, noisy: bool) -> AudioStreamWAV:
+	var rate := 22050
+	var count := int(rate * dur)
+	var bytes := PackedByteArray()
+	bytes.resize(count * 2)
+	var phase := 0.0
+	for i in range(count):
+		var t := float(i) / float(count)
+		var freq := lerpf(f0, f1, t)
+		phase += TAU * freq / float(rate)
+		var env := (1.0 - t) * sin(minf(1.0, t * 12.0) * PI * 0.5)
+		var sig := sin(phase) * 0.75 + sin(phase * 2.0) * 0.25
+		if noisy:
+			sig = sig * 0.55 + (randf() * 2.0 - 1.0) * 0.45
+		var sample := clampi(int(sig * env * vol * 32000.0), -32767, 32767)
+		bytes.encode_s16(i * 2, sample)
+	var stream := AudioStreamWAV.new()
+	stream.format = AudioStreamWAV.FORMAT_16_BITS
+	stream.mix_rate = rate
+	stream.data = bytes
+	return stream
+
+func play_sfx(name_key: String) -> void:
+	if not sfx_streams.has(name_key):
+		return
+	var p := AudioStreamPlayer.new()
+	p.stream = sfx_streams[name_key]
+	add_child(p)
+	p.play()
+	p.finished.connect(p.queue_free)
+
+func add_camera_shake(amount: float) -> void:
+	camera_shake = maxf(camera_shake, amount)
+
+func _get_local_lan_ip() -> String:
+	for ip in IP.get_local_addresses():
+		if ip.begins_with("192.168.") or ip.begins_with("10.") or ip.begins_with("172."):
+			return ip
+	return "192.168.1.10"
+
+func _build_menu() -> void:
+	var bg := ColorRect.new()
+	bg.color = Color("#0f2830")
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.custom_minimum_size = Vector2(1280, 720)
+	add_child(bg)
+	menu_bg = bg
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.custom_minimum_size = Vector2(1280, 720)
+	add_child(center)
+	menu = center
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(620, 0)
+	center.add_child(panel)
+
+	var box := VBoxContainer.new()
+	box.custom_minimum_size = Vector2(580, 0)
+	box.add_theme_constant_override("separation", 10)
+	panel.add_child(box)
+
+	var title := Label.new()
+	title.text = "CRASH LOCAL: JUNGLE RUMBLE"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 36)
+	title.add_theme_color_override("font_color", Color("#ffe66d"))
+	box.add_child(title)
+
+	var subtitle := Label.new()
+	subtitle.text = "RACE MODE  •  ARENA MODE  •  2–4 TELEFONER (LAN / HOTSPOT)"
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.add_theme_color_override("font_color", Color("#9be8d8"))
+	box.add_child(subtitle)
+
+	var mode_row := HBoxContainer.new()
+	mode_row.add_theme_constant_override("separation", 12)
+	box.add_child(mode_row)
+
+	var race := Button.new()
+	race.text = "VÆLG RACE MODE (JUNGLE SPRINT)"
+	race.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	race.custom_minimum_size.y = 52
+	mode_row.add_child(race)
+
+	var arena := Button.new()
+	arena.text = "VÆLG ARENA MODE (3 LIV KAMP)"
+	arena.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	arena.custom_minimum_size.y = 52
+	mode_row.add_child(arena)
+
+	race.pressed.connect(func() -> void: _select_mode("RACE", race, arena))
+	arena.pressed.connect(func() -> void: _select_mode("ARENA", arena, race))
+
+	var host := Button.new()
+	host.text = "OPRET RUM PÅ DENNE TELEFON (DIN IP: %s)" % _get_local_lan_ip()
+	host.custom_minimum_size.y = 50
+	host.pressed.connect(_host_game)
+	box.add_child(host)
+
+	ip_input = LineEdit.new()
+	ip_input.placeholder_text = "Indtast værtens lokale IP-adresse (fx 192.168.43.1)"
+	ip_input.text = _get_local_lan_ip()
+	ip_input.custom_minimum_size.y = 44
+	box.add_child(ip_input)
+
+	var join := Button.new()
+	join.text = "TILSLUT TIL VÆRT"
+	join.custom_minimum_size.y = 50
+	join.pressed.connect(_join_game)
+	box.add_child(join)
+
+	var start := Button.new()
+	start.text = "START MULTIPLAYER SPIL (VÆRT)"
+	start.custom_minimum_size.y = 54
+	start.modulate = Color("#ffe66d")
+	start.pressed.connect(_start_game)
+	box.add_child(start)
+
+	var solo := Button.new()
+	solo.text = "HURTIG TEST PÅ 1 TELEFON (MED BOT)"
+	solo.custom_minimum_size.y = 46
+	solo.pressed.connect(_start_solo_with_bot)
+	box.add_child(solo)
+
+	status_label = Label.new()
+	status_label.text = "Vælg Race/Arena. Alle telefoner skal være på samme Wi-Fi eller telefon-hotspot."
+	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(status_label)
+
+	_select_mode("RACE", race, arena)
+
+func _select_mode(mode: String, selected: Button, other: Button) -> void:
+	game_mode = mode
+	selected.modulate = Color("#8cff9b")
+	other.modulate = Color.WHITE
+	_status("Valgt %s. Opret rum på værten (IP: %s) eller tilslut." % [mode, _get_local_lan_ip()])
+
+func _host_game() -> void:
+	_close_network()
+	peer = ENetMultiplayerPeer.new()
+	var err := peer.create_server(PORT, MAX_CLIENTS)
+	if err != OK:
+		_status("Kunne ikke oprette rum. Godot-fejlkode: %d" % err)
+		return
+	multiplayer.multiplayer_peer = peer
+	_status("RUM OPRETTET! Værtens IP: %s (Port %d). Indtast denne IP på de andre telefoner." % [_get_local_lan_ip(), PORT])
+
+func _join_game() -> void:
+	_close_network()
+	var address := ip_input.text.strip_edges()
+	if address.is_empty():
+		_status("Skriv værtens lokale IP-adresse.")
+		return
+	peer = ENetMultiplayerPeer.new()
+	var err := peer.create_client(address, PORT)
+	if err != OK:
+		_status("Kunne ikke forbinde. Godot-fejlkode: %d" % err)
+		return
+	multiplayer.multiplayer_peer = peer
+	_status("Forbinder til %s:%d ..." % [address, PORT])
+
+func _start_game() -> void:
+	if not multiplayer.has_multiplayer_peer():
+		_host_game()
+	if not multiplayer.is_server():
+		_status("Kun værten kan starte spillet. Vent på værten.")
+		return
+	_begin_match.rpc(game_mode, false)
+
+func _start_solo_with_bot() -> void:
+	_host_game()
+	_begin_match(game_mode, true)
+
+@rpc("authority", "call_local", "reliable")
+func _begin_match(mode: String, include_bot: bool = false) -> void:
+	game_mode = mode
+	game_started = true
+	finishers.clear()
+	arena_timer = 90.0
+	if is_instance_valid(menu):
+		menu.hide()
+	if is_instance_valid(menu_bg):
+		menu_bg.hide()
+	if is_instance_valid(result_panel):
+		result_panel.queue_free()
+
+	_create_world()
+	_spawn_player(multiplayer.get_unique_id(), Vector2(110, FLOOR_Y - 70), false)
+	if multiplayer.is_server():
+		var idx := 1
+		for id in multiplayer.get_peers():
+			_spawn_player(id, Vector2(110 + idx * 65, FLOOR_Y - 70), false)
+			idx += 1
+		if include_bot:
+			_spawn_player(99, Vector2(185, FLOOR_Y - 70), true)
+	else:
+		_request_spawn.rpc_id(1, multiplayer.get_unique_id())
+	play_sfx("checkpoint")
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_spawn(id: int) -> void:
+	if multiplayer.is_server() and multiplayer.get_remote_sender_id() == id:
+		_spawn_player.rpc(id, Vector2(160 + (id % 3) * 65, FLOOR_Y - 70), false)
+
+func _create_world() -> void:
+	if is_instance_valid(world):
+		world.queue_free()
+	if is_instance_valid(hud_layer):
+		hud_layer.queue_free()
+
+	crates.clear()
+	fruits_map.clear()
+	enemies.clear()
+	moving_platforms.clear()
+	waterfalls.clear()
+	swaying_plants.clear()
+	active_touches.clear()
+
+	world = Node2D.new()
+	world.name = "GameWorld"
+	add_child(world)
+
+	var w_width := get_world_width()
+	_build_parallax_jungle(w_width)
+
+	if game_mode == "RACE":
+		_build_race_level()
+	else:
+		_build_arena_level()
+
+	_build_hud_and_touch()
+
+	camera = Camera2D.new()
+	camera.position = Vector2(640, 360)
+	camera.limit_left = 0
+	camera.limit_right = int(w_width)
+	camera.limit_top = 0
+	camera.limit_bottom = 720
+	camera.position_smoothing_enabled = true
+	camera.position_smoothing_speed = 7.5
+	camera.make_current()
+	world.add_child(camera)
+
+func _build_parallax_jungle(w_width: float) -> void:
+	var pbg := ParallaxBackground.new()
+	world.add_child(pbg)
+
+	var layers_cfg := [
+		["res://art/jungle_back.svg", Vector2(0.10, 0.0)],
+		["res://art/jungle_ruins.svg", Vector2(0.28, 0.0)],
+		["res://art/jungle_mid.svg", Vector2(0.55, 0.0)],
+		["res://art/jungle_fg.svg", Vector2(0.82, 0.0)]
+	]
+	for cfg in layers_cfg:
+		var pl := ParallaxLayer.new()
+		pl.motion_scale = cfg[1]
+		pl.motion_mirroring = Vector2(2400, 0)
+		var sp := Sprite2D.new()
+		sp.texture = load_svg_tex(cfg[0])
+		sp.centered = false
+		sp.position = Vector2.ZERO
+		if game_mode == "ARENA" and cfg[0].ends_with("jungle_back.svg"):
+			sp.modulate = Color(0.82, 0.78, 1.0)
+		pl.add_child(sp)
+		pbg.add_child(pl)
+
+	var wf_x_list := [520.0, 1840.0, 3420.0, 5120.0] if game_mode == "RACE" else [460.0, 1740.0]
+	for wx in wf_x_list:
+		var wf := Sprite2D.new()
+		if waterfall_frames.size() > 0:
+			wf.texture = waterfall_frames[0]
+		wf.position = Vector2(wx, 445)
+		wf.z_index = -12
+		world.add_child(wf)
+		waterfalls.append(wf)
+
+		var mist := CPUParticles2D.new()
+		mist.position = Vector2(wx, 585)
+		mist.z_index = -11
+		mist.amount = 16
+		mist.lifetime = 0.9
+		mist.direction = Vector2(0, -1)
+		mist.spread = 75.0
+		mist.gravity = Vector2(0, 60)
+		mist.initial_velocity_min = 25.0
+		mist.initial_velocity_max = 60.0
+		mist.scale_amount_min = 6.0
+		mist.scale_amount_max = 13.0
+		mist.color = Color(0.88, 0.99, 1.0, 0.55)
+		world.add_child(mist)
+
+	var rays_count := int(w_width / 650.0)
+	for i in range(rays_count):
+		var rx := 280.0 + float(i) * 650.0
+		var ray := Polygon2D.new()
+		ray.polygon = PackedVector2Array([
+			Vector2(rx, -20), Vector2(rx + 120, -20),
+			Vector2(rx + 310, 640), Vector2(rx + 130, 640)
+		])
+		ray.color = Color(1.0, 0.98, 0.78, 0.08)
+		ray.z_index = -8
+		world.add_child(ray)
+
+func _build_race_level() -> void:
+	var ground_segments := [
+		[0.0, 1420.0],
+		[1580.0, 2980.0],
+		[3160.0, 4680.0],
+		[4860.0, 6400.0]
+	]
+	for seg in ground_segments:
+		var x0: float = seg[0]
+		var x1: float = seg[1]
+		_platform(Vector2(x0, FLOOR_Y), Vector2(x1 - x0, 120))
+		var px := x0 + 95.0
+		while px < x1 - 95.0:
+			_add_swaying_plant(Vector2(px, FLOOR_Y - 18))
+			px += 260.0
+
+	_add_moving_platform(Vector2(1425, 535), Vector2(1555, 535), 1.6)
+	_add_moving_platform(Vector2(3000, 520), Vector2(3140, 430), 1.8)
+	_add_moving_platform(Vector2(4700, 525), Vector2(4840, 440), 1.9)
+
+	var plats := [
+		[280.0, 495.0, 165.0], [540.0, 425.0, 165.0], [820.0, 365.0, 175.0], [1120.0, 465.0, 165.0],
+		[1740.0, 485.0, 170.0], [2020.0, 410.0, 170.0], [2310.0, 345.0, 180.0], [2620.0, 445.0, 170.0],
+		[3320.0, 480.0, 165.0], [3590.0, 395.0, 165.0], [3860.0, 320.0, 185.0], [4160.0, 415.0, 170.0], [4430.0, 360.0, 165.0],
+		[5040.0, 475.0, 175.0], [5340.0, 395.0, 175.0], [5640.0, 330.0, 180.0], [5930.0, 435.0, 175.0]
+	]
+	for i in range(plats.size()):
+		var p: Array = plats[i]
+		_platform(Vector2(p[0], p[1]), Vector2(p[2], 34))
+		_spawn_fruit(i * 10 + 1, Vector2(p[0] + 45.0, p[1] - 42.0))
+		_spawn_fruit(i * 10 + 2, Vector2(p[0] + 85.0, p[1] - 62.0))
+		_spawn_fruit(i * 10 + 3, Vector2(p[0] + 125.0, p[1] - 42.0))
+
+	var crate_defs := [
+		[1, Vector2(360, 465), "NORMAL"],
+		[2, Vector2(680, FLOOR_Y - 26), "BOUNCE"],
+		[3, Vector2(905, 335), "AKU"],
+		[4, Vector2(1240, FLOOR_Y - 26), "TNT"],
+		[5, Vector2(1640, FLOOR_Y - 26), "CHECKPOINT"],
+		[6, Vector2(1820, 455), "NORMAL"],
+		[7, Vector2(2100, 380), "TNT"],
+		[8, Vector2(2395, 315), "NORMAL"],
+		[9, Vector2(2520, FLOOR_Y - 26), "BOUNCE"],
+		[10, Vector2(3220, FLOOR_Y - 26), "CHECKPOINT"],
+		[11, Vector2(3400, 450), "AKU"],
+		[12, Vector2(3945, 290), "NORMAL"],
+		[13, Vector2(4000, 290), "TNT"],
+		[14, Vector2(4320, FLOOR_Y - 26), "BOUNCE"],
+		[15, Vector2(4920, FLOOR_Y - 26), "CHECKPOINT"],
+		[16, Vector2(5125, 445), "NORMAL"],
+		[17, Vector2(5425, 365), "TNT"],
+		[18, Vector2(5725, 300), "AKU"]
+	]
+	for cd in crate_defs:
+		_spawn_crate(cd[0], cd[1], cd[2])
+
+	for hx in [980.0, 2180.0, 2790.0, 3720.0, 4520.0, 5520.0, 5820.0]:
+		_hazard(Vector2(hx, FLOOR_Y - 18))
+
+	var enemy_defs := [
+		[1, Vector2(460, FLOOR_Y - 26), 110.0, "CRAB"],
+		[2, Vector2(1290, FLOOR_Y - 26), 95.0, "CRAB"],
+		[3, Vector2(1920, FLOOR_Y - 32), 130.0, "TIKI"],
+		[4, Vector2(2460, FLOOR_Y - 26), 110.0, "CRAB"],
+		[5, Vector2(3480, FLOOR_Y - 32), 140.0, "TIKI"],
+		[6, Vector2(4080, FLOOR_Y - 26), 120.0, "CRAB"],
+		[7, Vector2(5240, FLOOR_Y - 32), 135.0, "TIKI"],
+		[8, Vector2(6040, FLOOR_Y - 26), 110.0, "CRAB"]
+	]
+	for ed in enemy_defs:
+		_spawn_enemy(ed[0], ed[1], ed[2], ed[3])
+
+	_add_art_sprite("res://art/sign.svg", Vector2(RACE_WORLD_WIDTH - 230, FLOOR_Y - 56), Vector2(82, 88), 2)
+	_goal(Vector2(RACE_WORLD_WIDTH - 115, FLOOR_Y - 110))
+
+func _build_arena_level() -> void:
+	_platform(Vector2(120, FLOOR_Y), Vector2(1960, 115))
+	var arena_plats := [
+		[280.0, 475.0, 240.0], [1680.0, 475.0, 240.0],
+		[640.0, 380.0, 260.0], [1300.0, 380.0, 260.0],
+		[940.0, 275.0, 320.0]
+	]
+	for ap in arena_plats:
+		_platform(Vector2(ap[0], ap[1]), Vector2(ap[2], 34))
+
+	_add_moving_platform(Vector2(480, 290), Vector2(780, 290), 1.5)
+	_add_moving_platform(Vector2(1420, 290), Vector2(1720, 290), 1.5)
+
+	for hx in [560.0, 1100.0, 1640.0]:
+		_hazard(Vector2(hx, FLOOR_Y - 18))
+
+	var arena_crates := [
+		[101, Vector2(220, FLOOR_Y - 26), "BOUNCE"],
+		[102, Vector2(1980, FLOOR_Y - 26), "BOUNCE"],
+		[103, Vector2(400, 445), "TNT"],
+		[104, Vector2(1800, 445), "TNT"],
+		[105, Vector2(770, 350), "NORMAL"],
+		[106, Vector2(1430, 350), "NORMAL"],
+		[107, Vector2(1100, 245), "AKU"],
+		[108, Vector2(860, FLOOR_Y - 26), "TNT"],
+		[109, Vector2(1340, FLOOR_Y - 26), "TNT"]
+	]
+	for cd in arena_crates:
+		_spawn_crate(cd[0], cd[1], cd[2])
+
+	for i in range(10):
+		_spawn_fruit(200 + i, Vector2(340.0 + i * 165.0, 215.0 + float(i % 2) * 95.0))
+
+func _add_swaying_plant(pos: Vector2) -> void:
+	var sp := Sprite2D.new()
+	sp.texture = load_svg_tex("res://art/jungle_plant.svg")
+	sp.position = pos
+	sp.scale = Vector2(0.45, 0.45)
+	sp.z_index = 4
+	world.add_child(sp)
+	swaying_plants.append(sp)
+
+func _add_moving_platform(p_from: Vector2, p_to: Vector2, speed: float) -> void:
+	var body := AnimatableBody2D.new()
+	body.position = p_from
+	var cs := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(150, 28)
+	cs.shape = rect
+	body.add_child(cs)
+	var sp := Sprite2D.new()
+	sp.texture = load_svg_tex("res://art/moving_platform.svg")
+	sp.scale = Vector2(150.0 / 240.0, 32.0 / 56.0)
+	body.add_child(sp)
+	world.add_child(body)
+	moving_platforms.append({"node": body, "from": p_from, "to": p_to, "speed": speed, "phase": randf() * TAU})
+
+func _spawn_crate(cid: int, pos: Vector2, ctype: String) -> void:
+	var area := Area2D.new()
+	area.position = pos
+	var cs := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(48, 48)
+	cs.shape = rect
+	area.add_child(cs)
+
+	var tex_path := "res://art/crate.svg"
+	match ctype:
+		"BOUNCE": tex_path = "res://art/bounce_crate.svg"
+		"TNT": tex_path = "res://art/tnt_crate.svg"
+		"AKU": tex_path = "res://art/aku_crate.svg"
+		"CHECKPOINT": tex_path = "res://art/checkpoint_crate.svg"
+
+	var sp := Sprite2D.new()
+	sp.name = "Sprite"
+	sp.texture = load_svg_tex(tex_path)
+	sp.scale = Vector2(46.0 / 128.0, 46.0 / 128.0)
+	area.add_child(sp)
+
+	var lbl := Label.new()
+	lbl.name = "TimerLabel"
+	lbl.position = Vector2(-12, -52)
+	lbl.add_theme_font_size_override("font_size", 24)
+	lbl.add_theme_color_override("font_color", Color("#ffea47"))
+	lbl.add_theme_color_override("font_shadow_color", Color.BLACK)
+	lbl.add_theme_constant_override("shadow_offset_x", 2)
+	lbl.add_theme_constant_override("shadow_offset_y", 2)
+	area.add_child(lbl)
+
+	area.body_entered.connect(func(body: Node2D): _on_crate_touched(cid, body))
+	world.add_child(area)
+	crates[cid] = {"node": area, "sprite": sp, "label": lbl, "type": ctype, "active": true, "tnt_timer": -1.0}
+
+func _on_crate_touched(cid: int, body) -> void:
+	if not crates.has(cid) or not crates[cid]["active"]:
+		return
+	if not body.has_method("get_player_id"):
+		return
+	var cdata: Dictionary = crates[cid]
+	var ctype: String = cdata["type"]
+	var cnode: Area2D = cdata["node"]
+
+	if ctype == "CHECKPOINT":
+		body.checkpoint_pos = cnode.global_position + Vector2(0, -20)
+		_activate_crate_effect.rpc(cid, body.get_player_id(), false)
+		return
+
+	if ctype == "BOUNCE":
+		body.velocity.y = -840.0
+		body.emit_dust()
+		play_sfx("bounce")
+		cnode.scale = Vector2(1.25, 0.75)
+		return
+
+	if ctype == "TNT":
+		if body.spinning:
+			_activate_crate_effect.rpc(cid, body.get_player_id(), true)
+		elif cdata["tnt_timer"] < 0.0:
+			cdata["tnt_timer"] = 3.0
+			if body.global_position.y < cnode.global_position.y:
+				body.velocity.y = -480.0
+			play_sfx("beep")
+		return
+
+	if body.global_position.y < cnode.global_position.y:
+		body.velocity.y = -520.0
+	_activate_crate_effect.rpc(cid, body.get_player_id(), false)
+
+@rpc("any_peer", "call_local", "reliable")
+func _activate_crate_effect(cid: int, pid: int, immediate_explode: bool) -> void:
+	if not crates.has(cid) or not crates[cid]["active"]:
+		return
+	var cdata: Dictionary = crates[cid]
+	var ctype: String = cdata["type"]
+	var cnode: Area2D = cdata["node"]
+	var pos := cnode.global_position
+
+	if ctype == "CHECKPOINT":
+		cdata["active"] = false
+		var sp: Sprite2D = cdata["sprite"]
+		sp.texture = load_svg_tex("res://art/checkpoint_open.svg")
+		play_sfx("checkpoint")
+		_spawn_burst_particles(pos, Color("#4cff88"), 18)
+		return
+
+	cdata["active"] = false
+	cnode.hide()
+
+	if ctype == "TNT" or immediate_explode:
+		play_sfx("explosion")
+		add_camera_shake(14.0)
+		_spawn_burst_particles(pos, Color("#ff4d29"), 28)
+		for id in players.keys():
+			var p = players[id]
+			if is_instance_valid(p) and p.global_position.distance_to(pos) < 115.0:
+				p.take_hazard_hit()
+	else:
+		play_sfx("crate")
+		add_camera_shake(5.0)
+		_spawn_burst_particles(pos, Color("#e89a3c"), 16)
+		if players.has(pid) and is_instance_valid(players[pid]):
+			if ctype == "AKU":
+				players[pid].grant_mask()
+				play_sfx("checkpoint")
+			else:
+				players[pid].add_fruit(3)
+				play_sfx("fruit")
+
+func _spawn_fruit(fid: int, pos: Vector2) -> void:
+	var area := Area2D.new()
+	area.position = pos
+	var cs := CollisionShape2D.new()
+	var circle := CircleShape2D.new()
+	circle.radius = 18.0
+	cs.shape = circle
+	area.add_child(cs)
+	var sp := Sprite2D.new()
+	sp.texture = load_svg_tex("res://art/fruit.svg")
+	sp.scale = Vector2(32.0 / 96.0, 36.0 / 112.0)
+	area.add_child(sp)
+	area.body_entered.connect(func(body: Node2D):
+		if body.has_method("get_player_id") and fruits_map.has(fid) and fruits_map[fid]["active"]:
+			_collect_fruit.rpc(fid, body.get_player_id())
+	)
+	world.add_child(area)
+	fruits_map[fid] = {"node": area, "base_y": pos.y, "active": true}
+
+@rpc("any_peer", "call_local", "reliable")
+func _collect_fruit(fid: int, pid: int) -> void:
+	if not fruits_map.has(fid) or not fruits_map[fid]["active"]:
+		return
+	fruits_map[fid]["active"] = false
+	var node: Area2D = fruits_map[fid]["node"]
+	_spawn_burst_particles(node.global_position, Color("#ffd426"), 10)
+	node.hide()
+	play_sfx("fruit")
+	if players.has(pid) and is_instance_valid(players[pid]):
+		players[pid].add_fruit(1)
+
+func _spawn_enemy(eid: int, pos: Vector2, patrol_dist: float, etype: String) -> void:
+	var area := Area2D.new()
+	area.position = pos
+	var cs := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(46, 44) if etype == "CRAB" else Vector2(44, 68)
+	cs.shape = rect
+	area.add_child(cs)
+
+	var sp := Sprite2D.new()
+	sp.texture = crab_frames[0] if etype == "CRAB" else tiki_frames[0]
+	sp.scale = Vector2(0.46, 0.46) if etype == "CRAB" else Vector2(0.54, 0.54)
+	area.add_child(sp)
+	area.body_entered.connect(func(body: Node2D): _on_enemy_contact(eid, body))
+	world.add_child(area)
+	enemies[eid] = {
+		"node": area, "sprite": sp, "type": etype,
+		"start_x": pos.x, "dist": patrol_dist, "dir": 1.0, "active": true
+	}
+
+func _on_enemy_contact(eid: int, body) -> void:
+	if not enemies.has(eid) or not enemies[eid]["active"]:
+		return
+	if not body.has_method("get_player_id"):
+		return
+	var enode: Area2D = enemies[eid]["node"]
+	if body.spinning or (body.velocity.y > 0.0 and body.global_position.y < enode.global_position.y - 10.0):
+		body.velocity.y = -520.0
+		_defeat_enemy.rpc(eid)
+	else:
+		body.take_hazard_hit()
+
+@rpc("any_peer", "call_local", "reliable")
+func _defeat_enemy(eid: int) -> void:
+	if not enemies.has(eid) or not enemies[eid]["active"]:
+		return
+	enemies[eid]["active"] = false
+	var enode: Area2D = enemies[eid]["node"]
+	_spawn_burst_particles(enode.global_position, Color("#ff6b4a"), 18)
+	enode.hide()
+	play_sfx("crate")
+	add_camera_shake(6.0)
+
+func check_spin_interactions(player) -> void:
+	var ppos: Vector2 = player.global_position
+	for cid in crates.keys():
+		if crates[cid]["active"]:
+			var cnode: Area2D = crates[cid]["node"]
+			if cnode.global_position.distance_to(ppos) < 84.0:
+				_activate_crate_effect.rpc(cid, player.get_player_id(), crates[cid]["type"] == "TNT")
+	for eid in enemies.keys():
+		if enemies[eid]["active"]:
+			var enode: Area2D = enemies[eid]["node"]
+			if enode.global_position.distance_to(ppos) < 88.0:
+				_defeat_enemy.rpc(eid)
+
+func _spawn_burst_particles(pos: Vector2, col: Color, count: int) -> void:
+	if not is_instance_valid(world):
+		return
+	var p := CPUParticles2D.new()
+	p.position = pos
+	p.amount = count
+	p.lifetime = 0.45
+	p.one_shot = true
+	p.explosiveness = 0.92
+	p.spread = 180.0
+	p.gravity = Vector2(0, 480)
+	p.initial_velocity_min = 95.0
+	p.initial_velocity_max = 240.0
+	p.scale_amount_min = 5.0
+	p.scale_amount_max = 10.0
+	p.color = col
+	world.add_child(p)
+	p.emitting = true
+	get_tree().create_timer(0.6).timeout.connect(func():
+		if is_instance_valid(p):
+			p.queue_free()
+	)
+
+func _add_art_sprite(path: String, at: Vector2, target_size: Vector2, z: int) -> Sprite2D:
+	var sprite := Sprite2D.new()
+	sprite.texture = load_svg_tex(path)
+	sprite.position = at
+	sprite.z_index = z
+	if sprite.texture:
+		sprite.scale = Vector2(target_size.x / sprite.texture.get_width(), target_size.y / sprite.texture.get_height())
+	world.add_child(sprite)
+	return sprite
+
+func _platform(pos: Vector2, size: Vector2, _body_color: Color = Color.WHITE, _top_color: Color = Color.WHITE) -> void:
+	var body := StaticBody2D.new()
+	body.position = pos + size / 2.0
+	var collision := CollisionShape2D.new()
+	var rectangle := RectangleShape2D.new()
+	rectangle.size = size
+	collision.shape = rectangle
+	body.add_child(collision)
+
+	var tex := load_svg_tex("res://art/platform.svg")
+	var tiles := maxi(1, int(ceil(size.x / 320.0)))
+	var tile_w := size.x / float(tiles)
+	for i in range(tiles):
+		var visual := Sprite2D.new()
+		visual.texture = tex
+		visual.position = Vector2(-size.x * 0.5 + tile_w * (float(i) + 0.5), 0.0)
+		visual.scale = Vector2(tile_w / 320.0, maxf(size.y / 90.0, 0.48))
+		body.add_child(visual)
+	world.add_child(body)
+
+func _goal(pos: Vector2) -> void:
+	var goal := Area2D.new()
+	goal.position = pos
+	var shape := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(75, 190)
+	shape.shape = rect
+	goal.add_child(shape)
+
+	var portal := Sprite2D.new()
+	portal.texture = load_svg_tex("res://art/goal_portal.svg")
+	portal.scale = Vector2(0.85, 0.85)
+	goal.add_child(portal)
+
+	goal.body_entered.connect(_on_goal)
+	world.add_child(goal)
+
+func _hazard(pos: Vector2) -> void:
+	var h := Area2D.new()
+	h.position = pos
+	var shape := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(74, 34)
+	shape.shape = rect
+	h.add_child(shape)
+
+	var sp := Sprite2D.new()
+	sp.texture = load_svg_tex("res://art/spikes.svg")
+	sp.scale = Vector2(82.0 / 240.0, 42.0 / 110.0)
+	h.add_child(sp)
+
+	h.body_entered.connect(_on_hazard)
+	world.add_child(h)
+
+func _build_hud_and_touch() -> void:
+	hud_layer = CanvasLayer.new()
+	hud_layer.name = "HUD"
+	add_child(hud_layer)
+
+	var hud_bg := ColorRect.new()
+	hud_bg.position = Vector2(16, 12)
+	hud_bg.size = Vector2(680, 74)
+	hud_bg.color = Color(0.05, 0.14, 0.11, 0.62)
+	hud_layer.add_child(hud_bg)
+
+	hud = Label.new()
+	hud.position = Vector2(28, 16)
+	hud.add_theme_font_size_override("font_size", 25)
+	hud.add_theme_color_override("font_color", Color("#ffe66d"))
+	hud.add_theme_color_override("font_shadow_color", Color("#111c15"))
+	hud.add_theme_constant_override("shadow_offset_x", 2)
+	hud.add_theme_constant_override("shadow_offset_y", 2)
+	hud_layer.add_child(hud)
+
+	sub_hud = Label.new()
+	sub_hud.position = Vector2(28, 48)
+	sub_hud.add_theme_font_size_override("font_size", 18)
+	sub_hud.add_theme_color_override("font_color", Color.WHITE)
+	hud_layer.add_child(sub_hud)
+
+	_touch_button(hud_layer, "◀", Vector2(28, 595), Vector2(104, 96), "left", Color("#2b7a58"))
+	_touch_button(hud_layer, "▶", Vector2(148, 595), Vector2(104, 96), "right", Color("#2b7a58"))
+	_touch_button(hud_layer, "JUMP", Vector2(995, 590), Vector2(120, 100), "jump", Color("#2678d9"))
+	_touch_button(hud_layer, "SPIN", Vector2(1130, 590), Vector2(120, 100), "spin", Color("#e85d24"))
+
+func _touch_button(layer: CanvasLayer, text: String, pos: Vector2, bsize: Vector2, action: String, col: Color) -> void:
+	var b := Button.new()
+	b.text = text
+	b.position = pos
+	b.size = bsize
+	b.modulate = col.lightened(0.25)
+	b.add_theme_font_size_override("font_size", 24)
+	layer.add_child(b)
+	touch_rects[action] = Rect2(pos - Vector2(8, 8), bsize + Vector2(16, 16))
+	b.button_down.connect(func():
+		b.scale = Vector2(0.92, 0.92)
+		if action in ["left", "right"]:
+			button_down_state[action] = true
+		_set_touch(action, true)
+	)
+	b.button_up.connect(func():
+		b.scale = Vector2.ONE
+		if action in ["left", "right"]:
+			button_down_state[action] = false
+		_set_touch(action, false)
+	)
+
+# Ægte Android Multi-Touch understøttelse (glid finger mellem ◀ og ▶ mens JUMP/SPIN trykkes)
+func _input(event: InputEvent) -> void:
+	if not game_started:
+		return
+	if event is InputEventScreenTouch:
+		var st := event as InputEventScreenTouch
+		if st.pressed:
+			active_touches[st.index] = st.position
+			if touch_rects.has("jump") and touch_rects["jump"].has_point(st.position):
+				jump_queued = true
+			if touch_rects.has("spin") and touch_rects["spin"].has_point(st.position):
+				spin_queued = true
+		else:
+			active_touches.erase(st.index)
+		_refresh_multitouch_dpad()
+	elif event is InputEventScreenDrag:
+		var sd := event as InputEventScreenDrag
+		active_touches[sd.index] = sd.position
+		_refresh_multitouch_dpad()
+
+func _refresh_multitouch_dpad() -> void:
+	var l: bool = bool(button_down_state.get("left", false))
+	var r: bool = bool(button_down_state.get("right", false))
+	for pos in active_touches.values():
+		if touch_rects.has("left") and touch_rects["left"].has_point(pos):
+			l = true
+		if touch_rects.has("right") and touch_rects["right"].has_point(pos):
+			r = true
+	touch_state["left"] = l
+	touch_state["right"] = r
+
+@rpc("authority", "call_local", "reliable")
+func _spawn_player(id: int, pos: Vector2, is_bot: bool = false) -> void:
+	if players.has(id) or not is_instance_valid(world):
+		return
+	var p = CharacterBody2D.new()
+	p.name = "Player_%d" % id
+	p.set_script(PLAYER_SCRIPT)
+	p.player_id = id
+	p.is_bot = is_bot
+	p.is_local = (id == multiplayer.get_unique_id()) and not is_bot
+	p.position = pos
+	world.add_child(p)
+	players[id] = p
+	if p.is_local:
+		local_player = p
+		camera.make_current()
+
+func _on_peer_disconnected(id: int) -> void:
+	if players.has(id):
+		players[id].queue_free()
+		players.erase(id)
+	_status("Spiller %d forlod rummet." % id)
+
+func _on_connected() -> void:
+	_status("Forbundet til værten! Vent på at værten trykker START.")
+
+func _on_connection_failed() -> void:
+	_status("Forbindelse fejlede. Kontrollér værtens IP og Wi-Fi/hotspot.")
+
+func _on_server_disconnected() -> void:
+	_status("Værtsforbindelsen blev afbrudt.")
+
+func _close_network() -> void:
+	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	peer = null
+	game_started = false
+	players.clear()
+	local_player = null
+
+func _status(message: String) -> void:
+	if is_instance_valid(status_label):
+		status_label.text = message
+	print("CrashLocal: ", message)
+
+func _on_peer_connected(id: int) -> void:
+	_status("Telefon #%d tilsluttet! (%d spillere klar)" % [id, multiplayer.get_peers().size() + 1])
+	if game_started and multiplayer.is_server():
+		_spawn_player.rpc(id, Vector2(140.0 + (id % 3) * 60.0, FLOOR_Y - 70.0), false)
+
+func _set_touch(action: String, pressed: bool) -> void:
+	if action == "jump":
+		if pressed:
+			jump_queued = true
+	elif action == "spin":
+		if pressed:
+			spin_queued = true
+	else:
+		touch_state[action] = pressed
+
+func consume_action(action: String) -> bool:
+	if action == "jump":
+		var result := jump_queued
+		jump_queued = false
+		return result
+	if action == "spin":
+		var result := spin_queued
+		spin_queued = false
+		return result
+	return false
+
+func submit_local_state(id: int, pos: Vector2, vel: Vector2, face: float, spin: bool, anim: String = "idle", lvs: int = 3, frt: int = 0, msk: bool = false) -> void:
+	if not multiplayer.has_multiplayer_peer():
+		return
+	if multiplayer.is_server():
+		_apply_state(id, pos, vel, face, spin, anim, lvs, frt, msk)
+	else:
+		_submit_state.rpc_id(1, id, pos, vel, face, spin, anim, lvs, frt, msk)
+
+@rpc("any_peer", "call_remote", "unreliable_ordered")
+func _submit_state(id: int, pos: Vector2, vel: Vector2, face: float, spin: bool, anim: String, lvs: int, frt: int, msk: bool) -> void:
+	if multiplayer.is_server() and multiplayer.get_remote_sender_id() == id:
+		_apply_state(id, pos, vel, face, spin, anim, lvs, frt, msk)
+
+func _apply_state(id: int, pos: Vector2, vel: Vector2, face: float, spin: bool, anim: String, lvs: int, frt: int, msk: bool) -> void:
+	if not players.has(id):
+		return
+	var p = players[id]
+	if not is_instance_valid(p):
+		return
+	p.network_position = pos
+	p.network_velocity = vel
+	p.facing = face
+	p.network_spinning = spin
+	p.network_anim = anim
+	p.lives = lvs
+	p.fruits = frt
+	p.has_mask = msk
+
+@rpc("authority", "call_remote", "unreliable_ordered")
+func _broadcast_state(id: int, pos: Vector2, vel: Vector2, face: float, spin: bool, anim: String, lvs: int, frt: int, msk: bool) -> void:
+	if players.has(id) and id != multiplayer.get_unique_id():
+		var p = players[id]
+		if is_instance_valid(p):
+			p.network_position = pos
+			p.network_velocity = vel
+			p.facing = face
+			p.network_spinning = spin
+			p.network_anim = anim
+			p.lives = lvs
+			p.fruits = frt
+			p.has_mask = msk
+
+func _process(delta: float) -> void:
+	if not game_started:
+		return
+
+	env_time += delta
+	_update_world_animations(delta)
+
+	if is_instance_valid(local_player) and is_instance_valid(camera):
+		var w_width := get_world_width()
+		var look_ahead: float = float(local_player.facing) * 95.0
+		var target_x: float = clampf(float(local_player.position.x) + look_ahead, 640.0, w_width - 640.0)
+		var shake_offset := Vector2.ZERO
+		if camera_shake > 0.1:
+			shake_offset = Vector2(randf_range(-camera_shake, camera_shake), randf_range(-camera_shake, camera_shake))
+			camera_shake = lerpf(camera_shake, 0.0, delta * 10.0)
+		camera.position = Vector2(target_x, 360.0) + shake_offset
+
+	net_tick_accum += delta
+	if multiplayer.has_multiplayer_peer() and multiplayer.is_server():
+		if net_tick_accum >= NET_TICK_INTERVAL:
+			net_tick_accum = 0.0
+			for id in players.keys():
+				var p = players[id]
+				if is_instance_valid(p):
+					var sync_pos: Vector2 = p.position if (p.is_local or p.is_bot) else p.network_position
+					var sync_vel: Vector2 = p.velocity if (p.is_local or p.is_bot) else p.network_velocity
+					var sync_spin: bool = p.spinning if (p.is_local or p.is_bot) else p.network_spinning
+					var sync_anim: String = p.anim_state if (p.is_local or p.is_bot) else p.network_anim
+					_broadcast_state.rpc(id, sync_pos, sync_vel, p.facing, sync_spin, sync_anim, p.lives, p.fruits, p.has_mask)
+
+		if game_mode == "ARENA":
+			arena_timer -= delta
+			if arena_timer <= 0.0:
+				_finish_arena_by_time()
+
+	_update_hud_text()
+
+func _update_world_animations(delta: float) -> void:
+	if waterfall_frames.size() >= 3:
+		var wf_idx := int(env_time * 9.0) % 3
+		for wf in waterfalls:
+			if is_instance_valid(wf):
+				wf.texture = waterfall_frames[wf_idx]
+
+	for i in range(swaying_plants.size()):
+		var pl: Node2D = swaying_plants[i]
+		if is_instance_valid(pl):
+			pl.rotation = sin(env_time * 3.2 + float(i)) * 0.11
+
+	for mp in moving_platforms:
+		var body: AnimatableBody2D = mp["node"]
+		if is_instance_valid(body):
+			var w: float = (sin(env_time * float(mp["speed"]) + float(mp["phase"])) + 1.0) * 0.5
+			body.position = (mp["from"] as Vector2).lerp(mp["to"] as Vector2, w)
+
+	for fid in fruits_map.keys():
+		var fdata: Dictionary = fruits_map[fid]
+		if fdata["active"] and is_instance_valid(fdata["node"]):
+			fdata["node"].position.y = fdata["base_y"] + sin(env_time * 4.5 + float(fid)) * 6.0
+
+	for cid in crates.keys():
+		var cdata: Dictionary = crates[cid]
+		if not cdata["active"]:
+			continue
+		var cnode: Area2D = cdata["node"]
+		cnode.scale = cnode.scale.lerp(Vector2.ONE, delta * 10.0)
+		if cdata["tnt_timer"] > 0.0:
+			var prev_sec: int = int(ceil(float(cdata["tnt_timer"])))
+			cdata["tnt_timer"] -= delta
+			var now_sec: int = int(ceil(float(cdata["tnt_timer"])))
+			if now_sec != prev_sec and now_sec > 0:
+				play_sfx("beep")
+			cdata["label"].text = str(maxi(1, now_sec))
+			cnode.modulate = Color(1.0, 0.45, 0.45) if int(env_time * 14.0) % 2 == 0 else Color.WHITE
+			if cdata["tnt_timer"] <= 0.0 and multiplayer.is_server():
+				_activate_crate_effect.rpc(cid, 1, true)
+
+	var frame_idx := int(env_time * 6.5) % 2
+	for eid in enemies.keys():
+		var edata: Dictionary = enemies[eid]
+		if not edata["active"]:
+			continue
+		var enode: Area2D = edata["node"]
+		var esp: Sprite2D = edata["sprite"]
+		if is_instance_valid(enode):
+			enode.position.x += edata["dir"] * 95.0 * delta
+			if absf(enode.position.x - edata["start_x"]) > edata["dist"]:
+				edata["dir"] = -edata["dir"]
+			esp.flip_h = (edata["dir"] > 0.0)
+			if edata["type"] == "CRAB" and crab_frames.size() >= 2:
+				esp.texture = crab_frames[frame_idx]
+			elif edata["type"] == "TIKI" and tiki_frames.size() >= 2:
+				esp.texture = tiki_frames[frame_idx]
+
+func _update_hud_text() -> void:
+	if not is_instance_valid(hud) or not is_instance_valid(local_player):
+		return
+	var mask_txt: String = "  •  TIKI-SKJOLD AKTIVT!" if local_player.has_mask else ""
+	if game_mode == "RACE":
+		var pct: int = clampi(int((float(local_player.position.x) / (RACE_WORLD_WIDTH - 150.0)) * 100.0), 0, 100)
+		hud.text = "JUNGLE RACE  •  WUMPA: %d  •  FREMSKRIDT: %d%%" % [local_player.fruits, pct]
+		sub_hud.text = "Spillere: %d  •  Smadr kasser med SPIN eller HOP!%s" % [players.size(), mask_txt]
+	else:
+		var hearts: String = "♥".repeat(maxi(0, int(local_player.lives)))
+		hud.text = "ARENA KAMP  •  LIV: %s  •  TID: %ds" % [hearts, maxi(0, int(ceil(arena_timer)))]
+		sub_hud.text = "Wumpa: %d  •  Slå modstandere ud med SPIN!%s" % [local_player.fruits, mask_txt]
+
+func _on_goal(body) -> void:
+	if not multiplayer.has_multiplayer_peer() or not multiplayer.is_server() or game_mode != "RACE":
+		return
+	if body.has_method("get_player_id"):
+		var id: int = body.get_player_id()
+		if not finishers.has(id):
+			finishers.append(id)
+			if finishers.size() == 1:
+				var winner_name: String = "BOT" if body.is_bot else ("SPILLER %d" % id)
+				_show_result.rpc("%s VANDT JUNGLE RACE! (%d Wumpa-frugter)" % [winner_name, body.fruits])
+
+func _on_hazard(body) -> void:
+	if body.has_method("take_hazard_hit"):
+		body.take_hazard_hit()
+	elif body.has_method("knock_out"):
+		body.knock_out()
+
+@rpc("authority", "call_local", "reliable")
+func _player_out(id: int) -> void:
+	if players.has(id) and is_instance_valid(players[id]):
+		players[id].is_out = true
+
+func check_arena_winner() -> void:
+	if game_mode != "ARENA" or not multiplayer.is_server() or not game_started:
+		return
+	var alive: Array = []
+	for id in players.keys():
+		var p = players[id]
+		if is_instance_valid(p) and not p.is_out:
+			alive.append(p)
+	if players.size() > 1 and alive.size() == 1:
+		var w = alive[0]
+		var wname: String = "BOT" if w.is_bot else ("SPILLER %d" % int(w.player_id))
+		_show_result.rpc("%s VINDER ARENA KAMPEN!" % wname)
+	elif alive.is_empty():
+		_show_result.rpc("UAFGJORT I ARENAEN!")
+
+func _finish_arena_by_time() -> void:
+	var best_p = null
+	var best_score := -1
+	for id in players.keys():
+		var p = players[id]
+		if is_instance_valid(p) and not p.is_out:
+			var sc: int = p.lives * 100 + p.fruits
+			if sc > best_score:
+				best_score = sc
+				best_p = p
+	if best_p != null:
+		var wname: String = "BOT" if best_p.is_bot else ("SPILLER %d" % int(best_p.player_id))
+		_show_result.rpc("TIDEN ER UDE! %s VINDER PÅ POINT!" % wname)
+	else:
+		_show_result.rpc("TIDEN ER UDE!")
+
+@rpc("authority", "call_local", "reliable")
+func _show_result(message: String) -> void:
+	if is_instance_valid(result_panel):
+		return
+	game_started = false
+	play_sfx("win")
+	result_panel = PanelContainer.new()
+	result_panel.position = Vector2(310, 230)
+	result_panel.custom_minimum_size = Vector2(660, 190)
+	if is_instance_valid(hud_layer):
+		hud_layer.add_child(result_panel)
+	else:
+		add_child(result_panel)
+
+	var v := VBoxContainer.new()
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.add_theme_constant_override("separation", 18)
+	result_panel.add_child(v)
+
+	var label := Label.new()
+	label.text = message
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 28)
+	label.add_theme_color_override("font_color", Color("#ffe66d"))
+	v.add_child(label)
+
+	var button := Button.new()
+	button.text = "TILBAGE TIL HOVEDMENU"
+	button.custom_minimum_size = Vector2(320, 56)
+	button.pressed.connect(func(): get_tree().reload_current_scene())
+	v.add_child(button)

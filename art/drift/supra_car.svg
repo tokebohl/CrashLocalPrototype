@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 84">
+  <defs>
+    <linearGradient id="bodyGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#d9d9d9"/>
+      <stop offset="50%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#cccccc"/>
+    </linearGradient>
+    <linearGradient id="glassGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b192c"/>
+      <stop offset="60%" stop-color="#1e3e62"/>
+      <stop offset="100%" stop-color="#09101d"/>
+    </linearGradient>
+    <linearGradient id="wingGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#222"/>
+      <stop offset="100%" stop-color="#000"/>
+    </linearGradient>
+  </defs>
+  <!-- Dæk (For og Bag) -->
+  <rect x="24" y="4" width="26" height="10" rx="3" fill="#141414"/>
+  <rect x="24" y="70" width="26" height="10" rx="3" fill="#141414"/>
+  <rect x="108" y="4" width="26" height="10" rx="3" fill="#141414"/>
+  <rect x="108" y="70" width="26" height="10" rx="3" fill="#141414"/>
+  <!-- Karrosseri (Toyota Supra MK4 silhuet) -->
+  <path d="M 14 20 Q 16 10 38 10 L 116 10 Q 146 12 152 28 L 152 56 Q 146 72 116 74 L 38 74 Q 16 74 14 64 Z" fill="url(#bodyGrad)" stroke="#222" stroke-width="2"/>
+  <!-- Widebody skærmforøgere -->
+  <path d="M 22 10 Q 37 6 52 10" fill="none" stroke="#888" stroke-width="2.5"/>
+  <path d="M 106 10 Q 121 6 136 10" fill="none" stroke="#888" stroke-width="2.5"/>
+  <path d="M 22 74 Q 37 78 52 74" fill="none" stroke="#888" stroke-width="2.5"/>
+  <path d="M 106 74 Q 121 78 136 74" fill="none" stroke="#888" stroke-width="2.5"/>
+  <!-- Forrude, tag og bagrude -->
+  <path d="M 42 18 L 76 16 L 106 20 L 106 64 L 76 68 L 42 66 Z" fill="url(#glassGrad)" stroke="#111" stroke-width="1.5"/>
+  <rect x="56" y="21" width="32" height="42" rx="4" fill="url(#bodyGrad)" stroke="#333" stroke-width="1"/>
+  <!-- Kølerhjelm luftindtag -->
+  <rect x="114" y="24" width="14" height="10" rx="2" fill="#2a2a2a"/>
+  <rect x="114" y="50" width="14" height="10" rx="2" fill="#2a2a2a"/>
+  <!-- Forlygter (Supra triple-projector stil) -->
+  <ellipse cx="144" cy="21" rx="6" ry="4" fill="#e0f7fa" stroke="#333" stroke-width="1"/>
+  <ellipse cx="144" cy="63" rx="6" ry="4" fill="#e0f7fa" stroke="#333" stroke-width="1"/>
+  <!-- Baglygter -->
+  <rect x="13" y="17" width="4" height="14" rx="1.5" fill="#ff1744"/>
+  <rect x="13" y="53" width="4" height="14" rx="1.5" fill="#ff1744"/>
+  <!-- Ikonisk Supra hækspoiler -->
+  <rect x="6" y="12" width="10" height="60" rx="2" fill="url(#wingGrad)" stroke="#444" stroke-width="1.2"/>
+  <rect x="10" y="16" width="5" height="6" fill="#111"/>
+  <rect x="10" y="62" width="5" height="6" fill="#111"/>
+  <!-- Udstødning -->
+  <rect x="8" y="65" width="7" height="5" rx="1" fill="#555"/>
+</svg>

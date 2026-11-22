@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="720" viewBox="0 0 2400 720">
+<defs>
+  <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#0b589c"/>
+    <stop offset="0.38" stop-color="#229ee0"/>
+    <stop offset="0.72" stop-color="#7ce8f5"/>
+    <stop offset="1" stop-color="#e3fff0"/>
+  </linearGradient>
+  <radialGradient id="sunGlow" cx="0.5" cy="0.5" r="0.5">
+    <stop offset="0" stop-color="#fffbe0" stop-opacity="0.95"/>
+    <stop offset="0.3" stop-color="#ffe57f" stop-opacity="0.55"/>
+    <stop offset="0.7" stop-color="#ffae3d" stop-opacity="0.18"/>
+    <stop offset="1" stop-color="#ffae3d" stop-opacity="0"/>
+  </radialGradient>
+  <linearGradient id="farMtn" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#7ac4c7"/>
+    <stop offset="0.6" stop-color="#4e9ca3"/>
+    <stop offset="1" stop-color="#2d6e75"/>
+  </linearGradient>
+  <linearGradient id="midMtn" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#499e8d"/>
+    <stop offset="0.55" stop-color="#297565"/>
+    <stop offset="1" stop-color="#174a40"/>
+  </linearGradient>
+</defs>
+<rect width="2400" height="720" fill="url(#sky)"/>
+<circle cx="1080" cy="175" r="290" fill="url(#sunGlow)"/>
+<circle cx="1080" cy="175" r="62" fill="#fffdf0" opacity="0.95"/>
+<g fill="#fffbe3" opacity="0.12">
+  <polygon points="1080,175 680,720 820,720"/>
+  <polygon points="1080,175 960,720 1120,720"/>
+  <polygon points="1080,175 1260,720 1430,720"/>
+  <polygon points="1080,175 1540,720 1720,720"/>
+</g>
+
+        <g transform="translate(140,110) scale(1.0)">
+          <path d="M-75 22 Q-92 -5 -55 -14 Q-40 -52 6 -26 Q42 -58 78 -16 Q116 -10 102 22 Z" fill="#8fd8e8" opacity="0.45"/>
+          <path d="M-70 16 Q-85 -12 -48 -18 Q-32 -55 12 -28 Q45 -58 78 -18 Q112 -12 96 16 Z" fill="#ffffff" opacity="0.92"/>
+          <ellipse cx="-18" cy="-16" rx="28" ry="14" fill="#fff9e6" opacity="0.8"/>
+        </g>
+        <g transform="translate(480,75) scale(0.85)">
+          <path d="M-75 22 Q-92 -5 -55 -14 Q-40 -52 6 -26 Q42 -58 78 -16 Q116 -10 102 22 Z" fill="#8fd8e8" opacity="0.45"/>
+          <path d="M-70 16 Q-85 -12 -48 -18 Q-32 -55 12 -28 Q45 -58 78 -18 Q112 -12 96 16 Z" fill="#ffffff" opacity="0.92"/>
+          <ellipse cx="-18" cy="-16" rx="28" ry="14" fill="#fff9e6" opacity="0.8"/>
+        </g>
+        <g transform="translate(860,125) scale(1.15)">
+          <path d="M-75 22 Q-92 -5 -55 -14 Q-40 -52 6 -26 Q42 -58 78 -16 Q116 -10 102 22 Z" fill="#8fd8e8" opacity="0.45"/>
+          <path d="M-70 16 Q-85 -12 -48 -18 Q-32 -55 12 -28 Q45 -58 78 -18 Q112 -12 96 16 Z" fill="#ffffff" opacity="0.92"/>
+          <ellipse cx="-18" cy="-16" rx="28" ry="14" fill="#fff9e6" opacity="0.8"/>
+        </g>
+        <g transform="translate(1240,82) scale(0.95)">
+          <path d="M-75 22 Q-92 -5 -55 -14 Q-40 -52 6 -26 Q42 -58 78 -16 Q116 -10 102 22 Z" fill="#8fd8e8" opacity="0.45"/>
+          <path d="M-70 16 Q-85 -12 -48 -18 Q-32 -55 12 -28 Q45 -58 78 -18 Q112 -12 96 16 Z" fill="#ffffff" opacity="0.92"/>
+          <ellipse cx="-18" cy="-16" rx="28" ry="14" fill="#fff9e6" opacity="0.8"/>
+        </g>
+        <g transform="translate(1620,118) scale(1.1)">
+          <path d="M-75 22 Q-92 -5 -55 -14 Q-40 -52 6 -26 Q42 -58 78 -16 Q116 -10 102 22 Z" fill="#8fd8e8" opacity="0.45"/>
+          <path d="M-70 16 Q-85 -12 -48 -18 Q-32 -55 12 -28 Q45 -58 78 -18 Q112 -12 96 16 Z" fill="#ffffff" opacity="0.92"/>
+          <ellipse cx="-18" cy="-16" rx="28" ry="14" fill="#fff9e6" opacity="0.8"/>
+        </g>
+        <g transform="translate(1990,78) scale(0.9)">
+          <path d="M-75 22 Q-92 -5 -55 -14 Q-40 -52 6 -26 Q42 -58 78 -16 Q116 -10 102 22 Z" fill="#8fd8e8" opacity="0.45"/>
+          <path d="M-70 16 Q-85 -12 -48 -18 Q-32 -55 12 -28 Q45 -58 78 -18 Q112 -12 96 16 Z" fill="#ffffff" opacity="0.92"/>
+          <ellipse cx="-18" cy="-16" rx="28" ry="14" fill="#fff9e6" opacity="0.8"/>
+        </g>
+        <g transform="translate(2260,115) scale(0.85)">
+          <path d="M-75 22 Q-92 -5 -55 -14 Q-40 -52 6 -26 Q42 -58 78 -16 Q116 -10 102 22 Z" fill="#8fd8e8" opacity="0.45"/>
+          <path d="M-70 16 Q-85 -12 -48 -18 Q-32 -55 12 -28 Q45 -58 78 -18 Q112 -12 96 16 Z" fill="#ffffff" opacity="0.92"/>
+          <ellipse cx="-18" cy="-16" rx="28" ry="14" fill="#fff9e6" opacity="0.8"/>
+        </g>
+<path d="M0 540 L75 210 L150 360 L225 263 L300 389 L375 316 L450 363 L525 239 L600 392 L675 292 L750 366 L825 215 L900 395 L975 268 L1050 369 L1125 321 L1200 398 L1275 244 L1350 372 L1425 297 L1500 401 L1575 220 L1650 375 L1725 273 L1800 404 L1875 326 L1950 378 L2025 249 L2100 407 L2175 302 L2250 381 L2325 225 L2400 410 L2475 278 L2550 384 L2400 720 L0 720 Z" fill="url(#farMtn)"/>
+<path d="M0 560 L95 270 L190 415 L285 341 L380 452 L475 297 L570 444 L665 368 L760 436 L855 324 L950 428 L1045 280 L1140 420 L1235 351 L1330 457 L1425 307 L1520 449 L1615 378 L1710 441 L1805 334 L1900 433 L1995 290 L2090 425 L2185 361 L2280 417 L2375 317 L2400 454 L2400 720 L0 720 Z" fill="url(#midMtn)"/>
+<rect x="0" y="455" width="2400" height="90" fill="#c9fff7" opacity="0.22"/>
+</svg>

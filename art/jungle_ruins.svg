@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="720" viewBox="0 0 2400 720">
+<path d="M0 450 L140 365 L290 420 L460 330 L640 430 L820 345 L1010 435 L1190 340 L1380 425 L1570 335 L1760 430 L1950 350 L2140 430 L2290 360 L2400 410 L2400 720 L0 720 Z" fill="#1e5948"/>
+
+        <g transform="translate(220, 280)">
+          <polygon points="-130,240 -95,120 95,120 130,240" fill="#5e5243" stroke="#362e24" stroke-width="4"/>
+          <rect x="-110" y="175" width="220" height="22" fill="#786956" stroke="#3b3227" stroke-width="3"/>
+          <rect x="-90" y="135" width="180" height="22" fill="#877762" stroke="#3b3227" stroke-width="3"/>
+          <rect x="-65" y="75" width="130" height="60" fill="#70614e" stroke="#362e24" stroke-width="4"/>
+          <polygon points="-80,75 0,28 80,75" fill="#9c8669" stroke="#3b3227" stroke-width="4"/>
+          <rect x="-24" y="95" width="48" height="40" fill="#241a12"/>
+          <rect x="-18" y="101" width="36" height="34" fill="#ffae2b" opacity="0.7"/>
+          <path d="M-95 135 Q-60 155 -30 135 Q0 150 40 135 Q75 152 95 135 Z" fill="#2e8c4a"/>
+          <path d="M-75 75 Q-30 92 0 75 Q35 92 75 75 Z" fill="#3da858"/>
+        </g>
+        <g transform="translate(740, 280)">
+          <polygon points="-130,240 -95,120 95,120 130,240" fill="#5e5243" stroke="#362e24" stroke-width="4"/>
+          <rect x="-110" y="175" width="220" height="22" fill="#786956" stroke="#3b3227" stroke-width="3"/>
+          <rect x="-90" y="135" width="180" height="22" fill="#877762" stroke="#3b3227" stroke-width="3"/>
+          <rect x="-65" y="75" width="130" height="60" fill="#70614e" stroke="#362e24" stroke-width="4"/>
+          <polygon points="-80,75 0,28 80,75" fill="#9c8669" stroke="#3b3227" stroke-width="4"/>
+          <rect x="-24" y="95" width="48" height="40" fill="#241a12"/>
+          <rect x="-18" y="101" width="36" height="34" fill="#ffae2b" opacity="0.7"/>
+          <path d="M-95 135 Q-60 155 -30 135 Q0 150 40 135 Q75 152 95 135 Z" fill="#2e8c4a"/>
+          <path d="M-75 75 Q-30 92 0 75 Q35 92 75 75 Z" fill="#3da858"/>
+        </g>
+        <g transform="translate(1340, 280)">
+          <polygon points="-130,240 -95,120 95,120 130,240" fill="#5e5243" stroke="#362e24" stroke-width="4"/>
+          <rect x="-110" y="175" width="220" height="22" fill="#786956" stroke="#3b3227" stroke-width="3"/>
+          <rect x="-90" y="135" width="180" height="22" fill="#877762" stroke="#3b3227" stroke-width="3"/>
+          <rect x="-65" y="75" width="130" height="60" fill="#70614e" stroke="#362e24" stroke-width="4"/>
+          <polygon points="-80,75 0,28 80,75" fill="#9c8669" stroke="#3b3227" stroke-width="4"/>
+          <rect x="-24" y="95" width="48" height="40" fill="#241a12"/>
+          <rect x="-18" y="101" width="36" height="34" fill="#ffae2b" opacity="0.7"/>
+          <path d="M-95 135 Q-60 155 -30 135 Q0 150 40 135 Q75 152 95 135 Z" fill="#2e8c4a"/>
+          <path d="M-75 75 Q-30 92 0 75 Q35 92 75 75 Z" fill="#3da858"/>
+        </g>
+        <g transform="translate(1920, 280)">
+          <polygon points="-130,240 -95,120 95,120 130,240" fill="#5e5243" stroke="#362e24" stroke-width="4"/>
+          <rect x="-110" y="175" width="220" height="22" fill="#786956" stroke="#3b3227" stroke-width="3"/>
+          <rect x="-90" y="135" width="180" height="22" fill="#877762" stroke="#3b3227" stroke-width="3"/>
+          <rect x="-65" y="75" width="130" height="60" fill="#70614e" stroke="#362e24" stroke-width="4"/>
+          <polygon points="-80,75 0,28 80,75" fill="#9c8669" stroke="#3b3227" stroke-width="4"/>
+          <rect x="-24" y="95" width="48" height="40" fill="#241a12"/>
+          <rect x="-18" y="101" width="36" height="34" fill="#ffae2b" opacity="0.7"/>
+          <path d="M-95 135 Q-60 155 -30 135 Q0 150 40 135 Q75 152 95 135 Z" fill="#2e8c4a"/>
+          <path d="M-75 75 Q-30 92 0 75 Q35 92 75 75 Z" fill="#3da858"/>
+        </g>
+
+        <g transform="translate(440, 315)">
+          <rect x="-85" y="0" width="170" height="340" rx="14" fill="#4f4337" stroke="#2b231c" stroke-width="4"/>
+          <path d="M-85 18 Q-40 -8 0 12 Q45 -8 85 18 L85 42 L-85 42 Z" fill="#32944c"/>
+          <rect x="-38" y="16" width="76" height="320" fill="#4fd4f2" opacity="0.78"/>
+          <rect x="-24" y="16" width="16" height="320" fill="#e3ffff" opacity="0.75"/>
+          <rect x="8" y="16" width="12" height="320" fill="#e3ffff" opacity="0.65"/>
+          <ellipse cx="0" cy="332" rx="64" ry="18" fill="#d9ffff" opacity="0.7"/>
+        </g>
+        <g transform="translate(1020, 315)">
+          <rect x="-85" y="0" width="170" height="340" rx="14" fill="#4f4337" stroke="#2b231c" stroke-width="4"/>
+          <path d="M-85 18 Q-40 -8 0 12 Q45 -8 85 18 L85 42 L-85 42 Z" fill="#32944c"/>
+          <rect x="-38" y="16" width="76" height="320" fill="#4fd4f2" opacity="0.78"/>
+          <rect x="-24" y="16" width="16" height="320" fill="#e3ffff" opacity="0.75"/>
+          <rect x="8" y="16" width="12" height="320" fill="#e3ffff" opacity="0.65"/>
+          <ellipse cx="0" cy="332" rx="64" ry="18" fill="#d9ffff" opacity="0.7"/>
+        </g>
+        <g transform="translate(1610, 315)">
+          <rect x="-85" y="0" width="170" height="340" rx="14" fill="#4f4337" stroke="#2b231c" stroke-width="4"/>
+          <path d="M-85 18 Q-40 -8 0 12 Q45 -8 85 18 L85 42 L-85 42 Z" fill="#32944c"/>
+          <rect x="-38" y="16" width="76" height="320" fill="#4fd4f2" opacity="0.78"/>
+          <rect x="-24" y="16" width="16" height="320" fill="#e3ffff" opacity="0.75"/>
+          <rect x="8" y="16" width="12" height="320" fill="#e3ffff" opacity="0.65"/>
+          <ellipse cx="0" cy="332" rx="64" ry="18" fill="#d9ffff" opacity="0.7"/>
+        </g>
+        <g transform="translate(2180, 315)">
+          <rect x="-85" y="0" width="170" height="340" rx="14" fill="#4f4337" stroke="#2b231c" stroke-width="4"/>
+          <path d="M-85 18 Q-40 -8 0 12 Q45 -8 85 18 L85 42 L-85 42 Z" fill="#32944c"/>
+          <rect x="-38" y="16" width="76" height="320" fill="#4fd4f2" opacity="0.78"/>
+          <rect x="-24" y="16" width="16" height="320" fill="#e3ffff" opacity="0.75"/>
+          <rect x="8" y="16" width="12" height="320" fill="#e3ffff" opacity="0.65"/>
+          <ellipse cx="0" cy="332" rx="64" ry="18" fill="#d9ffff" opacity="0.7"/>
+        </g>
+</svg>

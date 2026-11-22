@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="280" viewBox="0 0 220 280">
+<defs><radialGradient id="vortex" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffffff"/><stop offset="0.35" stop-color="#5cf2ff"/><stop offset="0.75" stop-color="#1d78d6"/><stop offset="1" stop-color="#0d2b6b" stop-opacity="0"/></radialGradient></defs>
+<ellipse cx="110" cy="165" rx="68" ry="92" fill="url(#vortex)"/>
+<rect x="20" y="65" width="38" height="205" rx="6" fill="#7a6855" stroke="#2e251d" stroke-width="5"/>
+<rect x="162" y="65" width="38" height="205" rx="6" fill="#7a6855" stroke="#2e251d" stroke-width="5"/>
+<polygon points="6,72 32,32 188,32 214,72" fill="#947e66" stroke="#2e251d" stroke-width="5"/>
+<rect x="42" y="42" width="136" height="24" rx="5" fill="#ffd942" stroke="#4a2b09" stroke-width="3.5"/>
+<polygon points="85,32 98,8 110,24 122,8 135,32" fill="#ffe863" stroke="#4a2b09" stroke-width="3.5"/>
+</svg>

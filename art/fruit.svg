@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="112" viewBox="0 0 96 112">
+<defs><radialGradient id="wumpa" cx="0.35" cy="0.28" r="0.75"><stop offset="0" stop-color="#fff996"/><stop offset="0.28" stop-color="#ffd026"/><stop offset="0.65" stop-color="#ff6b14"/><stop offset="1" stop-color="#b81d2a"/></radialGradient></defs>
+<path d="M47 26 Q49 8 58 6" fill="none" stroke="#4f2b12" stroke-width="6" stroke-linecap="round"/>
+<path d="M48 24 Q20 6 12 26 Q28 36 48 24 Z" fill="#4cd94c" stroke="#165922" stroke-width="3.5"/>
+<path d="M48 24 Q74 6 84 24 Q66 36 48 24 Z" fill="#34b83b" stroke="#165922" stroke-width="3.5"/>
+<path d="M48 22 Q16 20 14 52 Q12 82 36 96 Q48 106 60 96 Q84 82 82 52 Q80 20 48 22 Z" fill="url(#wumpa)" stroke="#7a1616" stroke-width="4.5"/>
+<ellipse cx="33" cy="46" rx="9" ry="18" fill="#fffce0" opacity="0.78" transform="rotate(22 33 46)"/>
+</svg>

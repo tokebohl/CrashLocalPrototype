@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="150" viewBox="0 0 128 150"><defs>
+<linearGradient id="fur" x1="0" y1="0" x2="0.8" y2="1">
+  <stop offset="0" stop-color="#ffc34d"/>
+  <stop offset="0.45" stop-color="#f26b1d"/>
+  <stop offset="1" stop-color="#9e2a12"/>
+</linearGradient>
+<linearGradient id="furDark" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#d94e16"/>
+  <stop offset="1" stop-color="#751c0b"/>
+</linearGradient>
+<linearGradient id="belly" x1="0.2" y1="0" x2="0.8" y2="1">
+  <stop offset="0" stop-color="#fff0b8"/>
+  <stop offset="0.6" stop-color="#ffbf66"/>
+  <stop offset="1" stop-color="#d97b29"/>
+</linearGradient>
+<linearGradient id="pants" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#3a94eb"/>
+  <stop offset="0.55" stop-color="#1d5ea8"/>
+  <stop offset="1" stop-color="#0f3463"/>
+</linearGradient>
+<linearGradient id="boot" x1="0" y1="0" x2="1" y2="1">
+  <stop offset="0" stop-color="#ffe76b"/>
+  <stop offset="0.55" stop-color="#f29d24"/>
+  <stop offset="1" stop-color="#9c3311"/>
+</linearGradient>
+<linearGradient id="glove" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#a6633c"/>
+  <stop offset="1" stop-color="#4f2915"/>
+</linearGradient>
+<linearGradient id="spinGrad" x1="0" y1="0" x2="1" y2="0">
+  <stop offset="0" stop-color="#ffe680" stop-opacity="0.95"/>
+  <stop offset="0.35" stop-color="#f56e1e" stop-opacity="0.98"/>
+  <stop offset="0.7" stop-color="#2678d9" stop-opacity="0.9"/>
+  <stop offset="1" stop-color="#ffba42" stop-opacity="0.95"/>
+</linearGradient>
+</defs>
+<ellipse cx="64" cy="141" rx="40" ry="8" fill="#0c261e" opacity="0.4"/>
+<path d="M10 42 Q64 26 118 44" fill="none" stroke="#fff9d6" stroke-width="6" stroke-linecap="round" opacity="0.85"/>
+<path d="M6 74 Q64 92 122 70" fill="none" stroke="#7ce8ff" stroke-width="7" stroke-linecap="round" opacity="0.8"/>
+<path d="M18 106 Q64 120 110 104" fill="none" stroke="#ffe07d" stroke-width="6" stroke-linecap="round" opacity="0.85"/>
+<path d="M18 32 Q64 20 110 32 L96 84 Q64 94 32 84 Z" fill="url(#spinGrad)" stroke="#7a220e" stroke-width="4"/>
+<path d="M26 78 Q64 88 102 78 L84 118 Q64 126 44 118 Z" fill="url(#pants)" stroke="#10325c" stroke-width="4"/>
+<path d="M38 112 Q64 120 90 112 L74 139 Q64 143 54 139 Z" fill="url(#boot)" stroke="#5c2810" stroke-width="4"/>
+<ellipse cx="58" cy="48" rx="42" ry="10" fill="#ffdf78" opacity="0.65"/>
+<ellipse cx="70" cy="68" rx="36" ry="9" fill="#ff7b29" opacity="0.7"/>
+<ellipse cx="58" cy="94" rx="28" ry="8" fill="#52b6ff" opacity="0.7"/>
+<circle cx="12" cy="58" r="11" fill="url(#glove)" stroke="#33180a" stroke-width="3.5"/>
+<circle cx="116" cy="72" r="11" fill="url(#glove)" stroke="#33180a" stroke-width="3.5"/>
+<ellipse cx="50" cy="40" rx="8" ry="10" fill="#ffffff" stroke="#5c1e0c" stroke-width="2.5"/>
+<ellipse cx="70" cy="40" rx="8" ry="10" fill="#ffffff" stroke="#5c1e0c" stroke-width="2.5"/>
+<circle cx="52" cy="40" r="4" fill="#132e35"/>
+<circle cx="72" cy="40" r="4" fill="#132e35"/>
+</svg>
